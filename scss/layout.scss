@@ -1,0 +1,46 @@
+body {
+    font-family: $primary-font-stack;
+    font-size: $font-medium;
+    line-height: 1.5;
+}
+
+html {
+  box-sizing: border-box;
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+button, .button {
+    font-family: $primary-font-stack;
+    background: $primary;
+    border-radius: 4px;
+    padding: $font-small $font-large;
+    color: #fff;
+    border: 0;
+    display: inline-block;
+    font-size: $font-medium;
+
+    &.secondary {
+        background: $secondary;
+    }
+}
+
+.container {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 $font-large * 2;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background: $light-gray;
+    margin: $font-large * 2 0;
+}
+
+h2 {
+    font-size: $font-xlarge;
+}

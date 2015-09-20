@@ -1,0 +1,21 @@
+.posts-content {
+    @include clearfix();
+
+    &.has-sidebar {
+        .posts {
+            float: left;
+            width: 75%;
+        }
+
+        .sidebar {
+            float: right;
+            width: 25%;
+
+            .widget {
+                background-color: $dark-gray;
+                padding: $font-large;
+                margin-bottom: $font-large;
+            }
+        }
+    }
+}

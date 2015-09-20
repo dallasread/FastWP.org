@@ -1,0 +1,49 @@
+header {
+    @include clearfix();
+
+    padding-top: $font-large * 6;
+    padding-bottom: $font-large * 2;
+    color: #999999;
+
+    #logo {
+        float: left;
+
+        img {
+            width: 250px;
+        }
+    }
+
+    .menu {
+        float: right;
+
+        li {
+            display: inline-block;
+        }
+
+        a {
+            padding: $font-small $font-large;
+            display: inline-block;
+        }
+
+        .bordered {
+            border: 1px solid $primary;
+            color: $primary;
+            border-radius: 4px;
+        }
+
+        .primary {
+            color: $primary;
+        }
+    }
+}
+
+#top-bar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    background: $primary;
+    padding: $font-large $font-medium;
+    color: #fff;
+    text-align: center;
+}
