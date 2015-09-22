@@ -1,21 +1,64 @@
 .posts-content {
     @include clearfix();
+    background: #fff;
+    padding: $font-large * 2;
+
+    .big-title {
+        margin-top: $font-large * -2;
+        margin-right: $font-large * -2;
+        margin-left: $font-large * -2;
+        // margin-bottom: $font-large * 2;
+        padding: $font-large * 2;
+        text-align: center;
+    }
 
     &.has-sidebar {
         .posts {
             float: left;
-            width: 75%;
+            width: 65%;
         }
 
         .sidebar {
             float: right;
-            width: 25%;
+            width: 30%;
+            padding-left: $font-large * 2.5;
+            border-left: 1px solid $light-gray;
 
             .widget {
-                background-color: $dark-gray;
-                padding: $font-large;
                 margin-bottom: $font-large;
             }
+
+            h4 {
+                margin-bottom: 0;
+            }
+        }
+    }
+
+    .post {
+        @include clearfix();
+
+        margin-bottom: $font-large * 2.5;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    ul {
+        list-style: disc;
+        padding-left: 25px;
+    }
+
+    ol {
+        list-style: decimal;
+        padding-left: 25px;
+    }
+
+    h1, h2, h3, h4, h5, h6, p, ul, blockquote {
+        margin-bottom: $font-large;
+
+        &:last-child {
+            margin-bottom: 0;
         }
     }
 }

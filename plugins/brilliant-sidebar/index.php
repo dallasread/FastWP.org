@@ -55,6 +55,7 @@ class BrilliantSidebar {
         wp_nonce_field( 'brilliant-sidebar-nonce', 'brilliant-sidebar-nonce' );
 
         $sidebar = get_post_meta( $post->ID, 'brilliant-sidebar', true );
+        $check = get_post_meta( $post->ID, 'brilliant-big-title', true );
 
         echo "<select name=\"brilliant-sidebar\">";
         echo "<option value=\"\">No Sidebar</option>";
@@ -63,7 +64,16 @@ class BrilliantSidebar {
             echo "<option value=\"" . $s['id'] . "\" " . ($s['id'] == $sidebar ? ' selected="selected"' : '') . ">" . $s['name'] . "</option>";
         }
 
-        echo "</select>";
+        echo "</select><br><br>";
+
+        $checked = '';
+
+        if ($check == 1) {
+            $checked = "checked=\"checked\"";
+        }
+
+        echo "<input type=\"checkbox\" value=\"1\" name=\"brilliant-big-title\" id=\"brilliant-big-title\" $checked>";
+        echo "<label for=\"brilliant-big-title\">Big Title</label>";
     }
 
     function save_post( $post_id ) {
@@ -94,6 +104,7 @@ class BrilliantSidebar {
         $sidebar = sanitize_text_field( $_POST['brilliant-sidebar'] );
 
         update_post_meta( $post_id, 'brilliant-sidebar', $sidebar );
+        update_post_meta( $post_id, 'brilliant-big-title', $_POST['brilliant-big-title'] == 1 );
     }
 
 }

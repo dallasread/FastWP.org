@@ -11,16 +11,19 @@ $light-gray: #DDDDDD;
 $medium-gray: #646C71;
 $dark-gray: #2E3234;
 
-$primary-font-stack: Open Sans, Helvetica Neue, Helvetica, Arial, sans-serif;
+// $primary-font-stack: Open Sans, Helvetica Neue, Helvetica, Arial, sans-serif;
+$primary-font-stack: "Trebuchet MS","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Tahoma,sans-serif;
 
-$font-small: 13px;
+$font-small: 14px;
 $font-medium: 16px;
 $font-large: 21px;
 $font-xlarge: 27px;
 
 @import "reset";
+@import "icons";
 @import "mixins";
 @import "layout";
 @import "header";
 @import "footer";
 @import "posts";
+@import "responsive";

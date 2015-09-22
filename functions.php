@@ -15,6 +15,9 @@ class FastWordPress {
     add_filter( 'excerpt_more', array($this, 'excerpt_more') );
     add_filter( 'excerpt_length', array($this, 'excerpt_length') );
 
+    add_shortcode( "tag", array($this, "tag_shortcode") );
+    add_filter( "widget_title", "do_shortcode" );
+
     FastWordPress::menus();
   }
 
@@ -23,8 +26,18 @@ class FastWordPress {
     wp_enqueue_script( "script",      get_template_directory_uri() . "/js/fastwordpress.js", array("jquery") );
   }
 
+  public static function tag_shortcode( $attrs, $content ) {
+      extract( shortcode_atts( array(
+        'tag' => 'p',
+        'class' => '',
+        'class2' => ''
+    ), $attrs ) );
+
+    return '<' . $tag . ' class="' . $attrs["class"] . ' ' . $attrs["class2"] . '">' . $content . '</' . $tag . '>';
+  }
+
   public static function excerpt_more($more) {
-    return $more ? '...' : '';
+    return $more ? '... <a href="' . get_the_permalink() . '">Read More &rarr;</a>' : '';
   }
 
   public static function excerpt_length( $length ) {

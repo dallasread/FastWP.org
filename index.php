@@ -9,9 +9,27 @@
   $single = is_single() || is_page();
   $meta = get_post_meta($post->ID);
   $sidebar = $meta['brilliant-sidebar'] ? $meta['brilliant-sidebar'][0] : false;
+
+  if (!$single || is_single()) {
+      $sidebar = 'main';
+  }
+
+  if (is_single()) {
+      $meta['brilliant-big-title'] = true;
+  }
 ?>
 
 <div class="posts-content <?php echo $single ? "is-single" : 'is-group'; ?> <?php echo $sidebar ? "has-$sidebar-sidebar has-sidebar" : 'has-no-sidebar'; ?>">
+<?php if (isset($meta['brilliant-big-title'])) { ?>
+    <div class="big-title">
+      <h1>
+        <a href="<?php the_permalink(); ?>" rel="bookmark" title="Permanent Link to <?php the_title_attribute(); ?>">
+          <?php the_title(); ?>
+        </a>
+      </h1>
+  </div>
+<?php } ?>
+
   <div class="posts">
     <div class="loading"></div>
 
@@ -25,7 +43,7 @@
 
         <?php if (has_post_thumbnail()) { ?>
           <?php
-              if ($sidebar) {
+              if ($single) {
                  $thumb = wp_get_attachment_image_src( get_post_thumbnail_id( $post->ID ), 'full' );
           ?>
             <a href="<?php the_permalink(); ?>" class="featured-image">
@@ -33,29 +51,29 @@
             </a>
           <?php } else { ?>
             <a href="<?php the_permalink(); ?>" class="featured-image-bg">
-                <?php echo the_post_thumbnail( 'brilliant-blog' ); ?>
+                <?php echo the_post_thumbnail(); ?>
             </a>
           <?php } ?>
         <?php } ?>
 
         <div class="post-content">
-          <?php if (!isset($meta['no-title'])) { ?>
+          <?php if (!isset($meta['brilliant-big-title'])) { ?>
             <h2>
               <a href="<?php the_permalink(); ?>" rel="bookmark" title="Permanent Link to <?php the_title_attribute(); ?>">
                 <?php the_title(); ?>
               </a>
             </h2>
 
-            <?php if (is_single()) { ?>
+            <!-- <?php if ($single) { ?>
               <small>
                 <?php the_author_posts_link(); ?> /
                 <?php the_time('F j, Y'); ?>
               </small>
-            <?php } ?>
+            <?php } ?> -->
           <?php } ?>
 
           <div class="content">
-            <?php if ($sidebar) { ?>
+            <?php if ($single) { ?>
               <?php the_content('', false, ''); ?>
             <?php } else { ?>
               <p class="excerpt"><?php the_excerpt('', false, ''); ?></p>
@@ -65,7 +83,7 @@
             <?php } ?>
           </div>
 
-          <?php if (count($categories) > 0) { ?>
+          <!-- <?php if (count($categories) > 0) { ?>
             <ul class="categories">
               <?php foreach ($categories as $category) {
               ?>
@@ -76,7 +94,7 @@
                 </li>
               <?php } ?>
             </ul>
-          <?php } ?>
+          <?php } ?> -->
 
           <?php if (!empty($tags)) { ?>
             <p class="tags">

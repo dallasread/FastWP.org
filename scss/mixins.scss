@@ -5,3 +5,22 @@
       clear: both;
   }
 }
+
+@mixin redbg {
+    border: 1px solid #c60000;
+    background: #f74e00; /* Old browsers */
+    background: -moz-linear-gradient(top,  #f74e00 0%, #c60000 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#f74e00), color-stop(100%,#c60000)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #f74e00 0%,#c60000 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #f74e00 0%,#c60000 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #f74e00 0%,#c60000 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #f74e00 0%,#c60000 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#f74e00', endColorstr='#c60000',GradientType=0 ); /* IE6-9 */
+}
+
+@mixin mobilefix {
+    display: block;
+    float: none;
+    width: 100%;
+    clear: both;
+}
