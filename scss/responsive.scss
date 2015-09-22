@@ -34,6 +34,7 @@
 
         #logo {
             padding-top: $font-large - 2px;
+            padding-bottom: $font-small;
             padding-left: $font-medium;
         }
 
@@ -44,14 +45,24 @@
                 @include mobilefix();
 
                 display: none;
-            }
+                border: 0 !important;
 
-            .show-menu {
-                display: block;
-                font-size: $font-large;
+                a {
+                    display: block;
+                }
 
-                .glyphicons {
-                    top: -1px;
+                &.show-menu {
+                    display: block;
+                    position: absolute;
+                    top: $font-large * 1.9;
+                    width: auto;
+                    right: 0;
+                    font-size: $font-large;
+                    text-align: right;
+
+                    .glyphicons {
+                        top: -1px;
+                    }
                 }
             }
         }

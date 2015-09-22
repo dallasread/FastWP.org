@@ -1,0 +1,62 @@
+#fwp {
+    background: #fff;
+
+    .header {
+        @include clearfix();
+
+        background: $primary;
+        color: #fff;
+
+        h2 {
+            color: #fff;
+            float: left;
+            line-height: 1;
+
+            a {
+                padding: $font-large - 1 $font-large;
+            }
+        }
+
+        a {
+            display: inline-block;
+        }
+
+        .installation-menu {
+            float: left;
+        }
+
+        .account-menu {
+            float: right;
+        }
+
+        .menu {
+            text-transform: uppercase;
+            line-height: 1;
+            font-size: $font-small;
+
+            li {
+                display: inline-block;
+            }
+
+            a {
+                opacity: 0.5;
+                padding: $font-xlarge + 2 $font-medium $font-xlarge - 2;
+
+                &:hover {
+                    opacity: 1.0;
+                }
+
+                &.active {
+                    opacity: 1;
+                    background: rgba(255, 255, 255, 0.8);
+                    color: $primary;
+                }
+            }
+        }
+    }
+
+    .main {
+        padding: $font-xlarge;
+        min-height: 600px;
+    }
+}

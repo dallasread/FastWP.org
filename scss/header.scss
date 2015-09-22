@@ -21,6 +21,10 @@ header {
 
         li {
             display: inline-block;
+
+            &.show-menu {
+                display: none;
+            }
         }
 
         a {

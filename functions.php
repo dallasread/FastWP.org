@@ -22,8 +22,9 @@ class FastWordPress {
   }
 
   public static function scripts() {
-    wp_enqueue_style( "style",        get_template_directory_uri() . "/style.css" );
-    wp_enqueue_script( "script",      get_template_directory_uri() . "/js/fastwordpress.js", array("jquery") );
+    wp_enqueue_style( "fastwordpress",        get_template_directory_uri() . "/style.css" );
+    wp_enqueue_script( "fastwordpress",      get_template_directory_uri() . "/js/fastwordpress.js", array("jquery") );
+    wp_enqueue_script( "fwp",      get_template_directory_uri() . "/js/fwp.js", array("jquery") );
   }
 
   public static function tag_shortcode( $attrs, $content ) {
