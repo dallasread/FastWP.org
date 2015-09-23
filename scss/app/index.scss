@@ -1,62 +1,106 @@
 #fwp {
+    @include clearfix();
+
     background: #fff;
+    position: relative;
+    min-height: 600px;
+    margin-bottom: $font-xlarge * 2;
+    // top: 0;
+    // right: 0;
+    // bottom: 0;
+    // left: 0;
 
-    .header {
-        @include clearfix();
-
-        background: $primary;
-        color: #fff;
-
-        h2 {
-            color: #fff;
-            float: left;
-            line-height: 1;
-
-            a {
-                padding: $font-large - 1 $font-large;
-            }
-        }
+    .sidebar {
+        background: $dark-gray;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 250px;
+        overflow-y: auto;
 
         a {
-            display: inline-block;
-        }
-
-        .installation-menu {
-            float: left;
-        }
-
-        .account-menu {
-            float: right;
-        }
-
-        .menu {
-            text-transform: uppercase;
+            padding: $font-large;
+            display: block;
             line-height: 1;
-            font-size: $font-small;
+            color: #fff;
 
-            li {
-                display: inline-block;
-            }
-
-            a {
-                opacity: 0.5;
-                padding: $font-xlarge + 2 $font-medium $font-xlarge - 2;
-
-                &:hover {
-                    opacity: 1.0;
-                }
-
-                &.active {
-                    opacity: 1;
-                    background: rgba(255, 255, 255, 0.8);
-                    color: $primary;
-                }
+            &.active {
+                background: rgba(255, 255, 255, 0.5);
             }
         }
     }
 
-    .main {
-        padding: $font-xlarge;
-        min-height: 600px;
+    .content {
+        @include clearfix();
+
+        // margin-left: 250px;
+        // position: relative;
+
+        .loading {
+            background: rgba(255, 255, 255, 0.8);
+            position: absolute;
+            top: $font-large * 3.3;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            padding: 20% 40%;
+            text-align: center;
+        }
+
+        .header {
+            @include clearfix();
+
+            background: $primary;
+            color: #fff;
+
+            h2 {
+                color: #fff;
+                float: left;
+                line-height: 1;
+
+                a {
+                    padding: $font-large - 1 $font-large;
+                }
+            }
+
+            a {
+                display: inline-block;
+            }
+
+            .menu {
+                text-transform: uppercase;
+                line-height: 1;
+                font-size: $font-small;
+                float: right;
+
+                &.installation-menu {
+                    float: left;
+                }
+
+                li {
+                    display: inline-block;
+                }
+
+                a {
+                    opacity: 0.5;
+                    padding: $font-xlarge + 2 $font-medium $font-xlarge - 2;
+
+                    &:hover {
+                        opacity: 1.0;
+                    }
+
+                    &.active {
+                        opacity: 1;
+                        background: rgba(255, 255, 255, 0.8);
+                        color: $primary;
+                    }
+                }
+            }
+        }
+
+        .main {
+            padding: $font-xlarge;
+        }
     }
 }

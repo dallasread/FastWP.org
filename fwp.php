@@ -8,9 +8,8 @@
 <div id="fwp"></div>
 <script type="text/javascript">
     $ = jQuery.noConflict();
-    $('body').attr('id', 'fwp');
+    // $('body').attr('id', 'fwp');
     FWP.create('#fwp');
-    $('header .menu, #top-bar').hide();
 </script>
 
-<?php get_footer(); ?>
+<!-- <?php get_footer(); ?> -->

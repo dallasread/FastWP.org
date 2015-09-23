@@ -16,7 +16,7 @@ console.log('ENV:', production ? 'Production' : 'Development');
 
 gulp.task('js', function() {
     var bundler = browserify({
-        entries: ['./js/app/index.js']
+        entries: ['./js/app/app.js']
     })
     .transform(
         stringify({
@@ -35,12 +35,11 @@ gulp.task('js', function() {
     var bundle = function() {
         return bundler
             .bundle()
-            .pipe(source('./js/app/index.js'))
+            .pipe(source('./js/app/app.js'))
             .pipe(buffer())
             .pipe(rename('fwp.js'))
-            .pipe(gulp.dest('./js'))
-            // .pipe(gulpif(production, uglify()))
-            // .pipe(gulpif(production, gulp.dest('./js/fwp.js')));
+            .pipe(gulpif(production, uglify()))
+            .pipe(gulp.dest('./js'));
     };
 
     return bundle();
@@ -57,7 +56,7 @@ gulp.task('scss', function () {
 
 gulp.task('watch', ['default'], function(){
     gulp.watch(['scss/**/*'], ['scss']);
-    gulp.watch(['js/**/*'], ['js']);
+    gulp.watch(['js/app/**/*'], ['js']);
 });
 
 gulp.task('default', ['scss', 'js']);

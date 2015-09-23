@@ -8,10 +8,10 @@ body {
     &.show-menu {
         header .menu {
             @include mobilefix();
-            
+
             li {
                 @include mobilefix();
-                
+
                 display: block;
             }
         }
@@ -35,6 +35,7 @@ button, .button {
     border: 0;
     display: inline-block;
     font-size: $font-medium;
+    cursor: pointer;
 
     &.secondary {
         background: $secondary;

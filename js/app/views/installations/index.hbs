@@ -1,0 +1,16 @@
+<table style="width: 100%;">
+    <thead>
+        <tr>Name</tr>
+        <tr></tr>
+        <tr></tr>
+    </thead>
+    <tbody>
+        {{#each app/sites}}
+            <tr>
+                <td><a href="#!/installations/{{id}}">{{name}}</a></td>
+                <td><a href="#!/installations/{{id}}/clone">Clone</a></td>
+                <td><a href="#!/installations/{{id}}/ssl">SSL</a></td>
+            </tr>
+        {{/each}}
+    </tbody>
+</table>
