@@ -9,7 +9,10 @@ var Route = require('../../utils/route'),
                 target: '[action="sign-in"]',
                 listener: function signInInteraction(e, $el) {
                     var _ = this;
-                    _.signIn($el.find('[name="email"]'), $el.find('[name="password"]'));
+                    _.signIn({
+                        email: $el.find('[name="email"]').val(),
+                        password: $el.find('[name="password"]').val()
+                    });
                     return false;
                 }
             }
@@ -19,6 +22,10 @@ var Route = require('../../utils/route'),
 var AccountsSignIn = Route.generate(function AccountsSignIn(options) {
     var _ = this;
 
+    _.beforeFilters = [
+        require('./signed-in-redirect')(_),
+    ];
+
     _.supercreate(options, config);
     _.defineProperties({
         title: 'Sign In'
@@ -26,35 +33,15 @@ var AccountsSignIn = Route.generate(function AccountsSignIn(options) {
 });
 
 AccountsSignIn.definePrototype({
-    signIn: function signIn(email, password) {
+    signIn: function signIn(credentials) {
         var _ = this;
 
-        _.app.user = {
-            name: 'Hi',
-            id: 123
-        };
+        _.app.auth(credentials, function (err, user) {
+            if (err) return alert('Could not sign in.');
 
-        _.app.sites['123'] = {
-            id: 123,
-            name: 'FastWordPress.org'
-        };
-
-        _.app.sites['234'] = {
-            id: 234,
-            name: 'BrandInABox.org'
-        };
-
-        _.app.sites['345'] = {
-            id: 345,
-            name: 'ExciteCreative.ca'
-        };
-
-        _.app.sites['456'] = {
-            id: 456,
-            name: 'BrilliantLabs.ca'
-        };
-
-        _.app.go('/');
+            _.app.user = user;
+            _.app.go('/');
+        });
     }
 });
 

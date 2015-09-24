@@ -1,12 +1,12 @@
 module.exports = function(route) {
-    return function findSite(done) {
-        if (route.app.sites[route.params.id]) {
-            route.site = route.app.sites[route.params.id];
+    return function findInstallation(done) {
+        if (route.app.user.installations[route.params.id]) {
+            route.installation = route.app.user.installations[route.params.id];
             return done();
         }
 
         setTimeout(function() {
-            // route.site = route.app.sites[route.params.id] = {
+            // route.installation = route.app.[route.params.id] = {
             //     name: 'Hi',
             //     id: route.params.id
             // };

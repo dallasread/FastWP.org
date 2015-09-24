@@ -1,4 +1,4 @@
-#fwp {
+.fwp {
     @include clearfix();
 
     background: #fff;
@@ -54,18 +54,40 @@
             background: $primary;
             color: #fff;
 
-            h2 {
+            h1, h2 {
+                width: auto;
+                font-size: $font-xlarge;
                 color: #fff;
                 float: left;
                 line-height: 1;
 
                 a {
                     padding: $font-large - 1 $font-large;
+
+                    i {
+                        margin-top: -2px;
+                        padding-bottom: 2px;
+                    }
                 }
             }
 
+            h1 {
+                padding: $font-large $font-large;
+            }
+
             a {
+                opacity: 0.5;
                 display: inline-block;
+
+                &:hover {
+                    opacity: 1.0;
+                }
+
+                &.active {
+                    opacity: 1.0;
+                    background: rgba(255, 255, 255, 0.8);
+                    color: $primary;
+                }
             }
 
             .menu {
@@ -83,18 +105,7 @@
                 }
 
                 a {
-                    opacity: 0.5;
-                    padding: $font-xlarge + 2 $font-medium $font-xlarge - 2;
-
-                    &:hover {
-                        opacity: 1.0;
-                    }
-
-                    &.active {
-                        opacity: 1;
-                        background: rgba(255, 255, 255, 0.8);
-                        color: $primary;
-                    }
+                    padding: $font-xlarge + 2 $font-medium $font-xlarge - 1;
                 }
             }
         }

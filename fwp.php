@@ -5,11 +5,22 @@
   get_header();
 ?>
 
-<div id="fwp"></div>
+<style media="screen">
+    header {
+        display: none;
+    }
+
+    .main {
+        display: none;
+    }
+</style>
+
 <script type="text/javascript">
     $ = jQuery.noConflict();
-    // $('body').attr('id', 'fwp');
-    FWP.create('#fwp');
+    $('body').addClass('fwp');
+    FWP.create('.fwp', {
+        apiURL: 'http://localhost:3000'
+    });
 </script>
 
 <!-- <?php get_footer(); ?> -->

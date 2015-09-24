@@ -12,10 +12,15 @@ var InstallationsIndex = Route.generate(function InstallationsIndex(options) {
         require('../accounts/find-user')(_)
     ];
 
+    _.defineProperties({
+        title: 'Installations'
+    });
+
     _.supercreate(options, config);
 });
 
 InstallationsIndex.definePrototype({
+
 });
 
 module.exports = InstallationsIndex;

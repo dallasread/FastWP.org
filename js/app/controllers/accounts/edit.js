@@ -12,6 +12,10 @@ var AccountsEdit = Route.generate(function AccountsEdit(options) {
         require('./find-user')(_)
     ];
 
+    _.defineProperties({
+        title: 'My Account'
+    });
+
     _.supercreate(options, config);
 });
 

@@ -93,7 +93,7 @@ Router.definePrototype({
         _.$element.find('[href="#!' + uri.path + '"]').addClass('active');
 
         async.waterfall(_.current.beforeFilters || [], function(err) {
-            if (err) return _.go(err);
+            if (typeof err === 'string') return _.go(err);
 
             _.$element.find('[data-main]').html( _.current.$element );
 

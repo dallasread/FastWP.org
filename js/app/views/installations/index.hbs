@@ -3,13 +3,14 @@
         <tr>Name</tr>
         <tr></tr>
         <tr></tr>
+        <tr></tr>
     </thead>
     <tbody>
-        {{#each app/sites}}
+        {{#each app/user/installations}}
             <tr>
-                <td><a href="#!/installations/{{id}}">{{name}}</a></td>
+                <td><a href="#!/installations/{{id}}">{{domain}}</a></td>
                 <td><a href="#!/installations/{{id}}/clone">Clone</a></td>
-                <td><a href="#!/installations/{{id}}/ssl">SSL</a></td>
+                <td><a href="#!/installations/{{id}}/history">History</a></td>
             </tr>
         {{/each}}
     </tbody>

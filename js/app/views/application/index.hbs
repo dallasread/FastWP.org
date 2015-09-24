@@ -2,7 +2,7 @@
     <ul>
         <li><a href="#!/my-account">My Account</a></li>
         <li><a href="#!/">Installations</a></li>
-        {{#each sites}}
+        {{#each }}
             <li>
                 <a href="#!/installations/{{id}}">
                     <i class="glyphicons glyphicons-cardio"></i>
@@ -15,29 +15,42 @@
 
 <div class="content">
     <div class="header">
-        {{#if current/site}}
-            <h2>
-                <a href="#!/installations/{{current/site/id}}">{{current/site/name}}</a>
-            </h2>
+        <h2>
+            <a href="#!/">
+                <i class="glyphicons glyphicons-show-big-thumbnails"></i>
+            </a>
+        </h2>
+
+        {{#if current/installation}}
+            <h1>
+                {{current/installation/domain}}
+            </h1>
 
             <ul class="installation-menu menu">
-                <li><a href="#!/installations/{{current/site/id}}">Status</a></li>
-                <li><a href="#!/installations/{{current/site/id}}/backups">Backups</a></li>
-                <li><a href="#!/installations/{{current/site/id}}/history">History</a></li>
-                <li><a href="#!/installations/{{current/site/id}}/clone">Clone</a></li>
-                <li><a href="#!/installations/{{current/site/id}}/ssl">SSL</a></li>
-                <li><a href="#!/installations/{{current/site/id}}/destroy">Destroy</a></li>
+                <li><a href="#!/installations/{{current/installation/id}}">Status</a></li>
+                <li><a href="#!/installations/{{current/installation/id}}/backups">Backups</a></li>
+                <li><a href="#!/installations/{{current/installation/id}}/history">History</a></li>
+                <li><a href="#!/installations/{{current/installation/id}}/clone">Clone</a></li>
+                <!-- <li><a href="#!/installations/{{current/installation/id}}/ssl">SSL</a></li> -->
+                <li><a href="#!/installations/{{current/installation/id}}/destroy">Destroy</a></li>
             </ul>
         {{else}}
-            <h2>
-                <a href="#!/">FastWordPress</a>
-            </h2>
+            <h1>
+                {{#if current/title}}
+                    {{current/title}}
+                {{else}}
+                    FastWordPress
+                {{/if}}
+            </h1>
         {{/if}}
 
-        <ul class="accounts-menu menu">
-            <li><a href="#!/">My Installations</a></li>
-            <li><a href="#!/my-account">My Account</a></li>
-        </ul>
+        {{#if user}}
+            <ul class="accounts-menu menu">
+                <li><a href="#!/">Installations</a></li>
+                <li><a href="#!/my-account">My Account</a></li>
+                <!-- <li><a href="#!/sign-out">Sign Out</a></li> -->
+            </ul>
+        {{/if}}
     </div>
 
     <div class="main" data-main></div>

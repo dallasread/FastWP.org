@@ -8,6 +8,10 @@ var Route = require('../../utils/route'),
 var AccountsSignUp = Route.generate(function AccountsSignUp(options) {
     var _ = this;
 
+    _.beforeFilters = [
+        require('./signed-in-redirect')(_),
+    ];
+
     _.supercreate(options, config);
 });
 

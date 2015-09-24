@@ -9,13 +9,14 @@ var AccountsSignOut = Route.generate(function AccountsSignOut(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./find-user')(_)
+        function signOut(done) {
+            _.app.user = null;
+            document.cookie = 'FWP-API-authToken=;';
+            window.location = window.location.href.split('#')[0];
+        }
     ];
 
     _.supercreate(options, config);
-});
-
-AccountsSignOut.definePrototype({
 });
 
 module.exports = AccountsSignOut;
