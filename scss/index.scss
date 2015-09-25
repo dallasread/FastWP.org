@@ -1,8 +1,10 @@
 $primary: #288FEB;
 $secondary: #28CB75;
 $light-gray: #DDDDDD;
+$semilight-gray: #BBBBBB;
 $medium-gray: #646C71;
 $dark-gray: #2E3234;
+$error: #e12600;
 
 $primary-font-stack: "Trebuchet MS","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Tahoma,sans-serif;
 
@@ -10,6 +12,7 @@ $font-small: 14px;
 $font-medium: 16px;
 $font-large: 21px;
 $font-xlarge: 27px;
+$font-xxlarge: 36px;
 
 @import "reset";
 @import "icons";

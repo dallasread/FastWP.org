@@ -1,0 +1,15 @@
+.fwp {
+    .wrapper {
+        &.wrapper-narrow {
+            margin: $font-xlarge * 2 auto;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        &.wrapper-medium {
+            margin: $font-xlarge * 2 auto;
+            width: 100%;
+            max-width: 700px;
+        }
+    }
+}

@@ -15,42 +15,71 @@
 
 <div class="content">
     <div class="header">
-        <h2>
-            <a href="#!/">
-                <i class="glyphicons glyphicons-show-big-thumbnails"></i>
-            </a>
-        </h2>
-
-        {{#if current/installation}}
-            <h1>
-                {{current/installation/domain}}
-            </h1>
-
-            <ul class="installation-menu menu">
-                <li><a href="#!/installations/{{current/installation/id}}">Status</a></li>
-                <li><a href="#!/installations/{{current/installation/id}}/backups">Backups</a></li>
-                <li><a href="#!/installations/{{current/installation/id}}/history">History</a></li>
-                <li><a href="#!/installations/{{current/installation/id}}/clone">Clone</a></li>
-                <!-- <li><a href="#!/installations/{{current/installation/id}}/ssl">SSL</a></li> -->
-                <li><a href="#!/installations/{{current/installation/id}}/destroy">Destroy</a></li>
-            </ul>
-        {{else}}
-            <h1>
-                {{#if current/title}}
-                    {{current/title}}
+        <div class="mobile-only">
+            <h2>
+                {{#with current/installation}}
+                    <a>
+                        {{domain}}
+                    </a>
                 {{else}}
-                    FastWordPress
-                {{/if}}
-            </h1>
-        {{/if}}
+                    <a>
+                        {{#if current/title}}
+                            {{current/title}}
+                        {{else}}
+                            FastWordPress
+                        {{/if}}
+                    </a>
+                {{/with}}
 
-        {{#if user}}
-            <ul class="accounts-menu menu">
-                <li><a href="#!/">Installations</a></li>
-                <li><a href="#!/my-account">My Account</a></li>
-                <!-- <li><a href="#!/sign-out">Sign Out</a></li> -->
-            </ul>
-        {{/if}}
+                <a href="#!/" class="float-right">
+                    <i class="glyphicons glyphicons-show-big-thumbnails"></i>
+                </a>
+            </h2>
+        </div>
+
+        <div class="desktop-only">
+            {{#if user}}
+                <h2>
+                    <a href="#!/">
+                        <i class="glyphicons glyphicons-show-big-thumbnails"></i>
+                    </a>
+                </h2>
+            {{/if}}
+
+            {{#with current/installation}}
+                <h1>
+                    {{domain}}
+                </h1>
+
+                <ul class="installation-menu menu">
+                    <li><a href="#!/installations/{{id}}">Status</a></li>
+                    <li><a href="#!/installations/{{id}}/backups">Backups</a></li>
+                    <!-- <li><a href="#!/installations/{{id}}/clone">Clone</a></li> -->
+                    <li><a href="#!/installations/{{id}}/ssl">SSL</a></li>
+                    <li><a href="#!/installations/{{id}}/destroy">Destroy</a></li>
+                </ul>
+            {{else}}
+                <h1>
+                    {{#if current/title}}
+                        {{current/title}}
+                    {{else}}
+                        FastWordPress
+                    {{/if}}
+                </h1>
+            {{/with}}
+
+            {{#if user}}
+                <ul class="accounts-menu menu">
+                    <li><a href="#!/">Installations</a></li>
+                    <li><a href="#!/my-account">My Account</a></li>
+                    <!-- <li><a href="#!/sign-out">Sign Out</a></li> -->
+                </ul>
+            {{/if}}
+        </div>
+    </div>
+
+    <div class="loading">
+        <i class="glyphicons spin glyphicons-brightness-increase"></i>
     </div>
 
     <div class="main" data-main></div>

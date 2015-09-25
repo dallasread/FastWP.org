@@ -6,6 +6,7 @@ var Route = CustomElement.generate(function Route(options, config) {
     delete options.app;
     options.key = Key(options);
     options.app = app;
+    // options.interactions = config.interactions;
 
     var _ = this,
         $element = $('<div>')

@@ -1,0 +1,66 @@
+.fwp {
+    .form {
+        width: 100%;
+        display: block;
+
+        &[disabled] {
+            .button, button {
+                opacity: 0.5;
+            }
+        }
+
+        .field {
+            margin-bottom: $font-large;
+            color: $semilight-gray;
+
+            &.focus {
+                color: $primary;
+            }
+
+            &.error {
+                color: $error;
+
+                input:not([type="checkbox"]) {
+                    border-color: $error;
+                    color: $error;
+                }
+            }
+
+            label {
+                display: block;
+                text-transform: uppercase;
+                line-height: 1.4;
+                margin-bottom: $font-small / 2;
+            }
+
+            input:not([type="checkbox"]) {
+                font-size: $font-large;
+                line-height: 1.8;
+                padding: $font-medium / 2 $font-medium;
+                outline: none;
+                border: 1px solid $semilight-gray;
+                border-radius: 4px;
+                color: $medium-gray;
+                font-weight: bold;
+                text-align: center;
+
+                &:focus {
+                    border-color: $primary;
+                    color: $primary;
+                }
+            }
+
+            input:not([type="checkbox"]), button, .button {
+                width: 100%;
+                display: block;
+            }
+
+            button, .button {
+                font-size: $font-large;
+                margin-bottom: $font-small;
+            }
+        }
+    }
+
+
+}

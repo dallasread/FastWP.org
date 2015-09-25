@@ -1,0 +1,79 @@
+.fwp {
+    @include clearfix();
+
+    background: #fff;
+    position: relative;
+    font-size: $font-large;
+    line-height: 1.8;
+
+    .content {
+        @include clearfix();
+
+        // margin-left: 250px;
+        // position: relative;
+
+        .loading {
+            background: rgba(255, 255, 255, 0.8);
+            position: absolute;
+            top: $font-large * 3.4;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            padding: 20% 40%;
+            text-align: center;
+            font-size: $font-xlarge * 3;
+
+            i {
+                color: $light-gray;
+            }
+        }
+
+        .main {
+            padding: $font-xlarge;
+
+            h1, h2, h3, h4, h5, h6, p, li {
+                margin-bottom: $font-small;
+            }
+
+            p {
+                color: $dark-gray;
+
+                a {
+                    color: $primary;
+                    border-bottom: 2px solid $primary;
+                }
+            }
+
+            table {
+                width: 100%;
+                border-top: 1px solid $light-gray;
+
+                thead {
+                    th {
+                        background: $light-gray;
+                        color: $medium-gray;
+                    }
+                }
+
+                tbody {
+                    tr {
+                        &:hover {
+                            background: $primary;
+                            color: #fff;
+                        }
+                    }
+
+                    td {
+                        border-bottom: 1px solid $light-gray;
+                    }
+
+                    a {
+                        display: block;
+                        padding: $font-medium;
+                        line-height: 1;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,15 +1,25 @@
-<form action="sign-in">
+<div class="wrapper wrapper-medium">
     <div class="field">
-        <label for="email">Email Address</label>
-        <input type="email" name="email">
+        <h2>Sign In to Your Account.</h2>
+        <p>If we haven't said it lately, thanks for being a part of our community. We're always looking for new feature ideas and feedback, so don't be afraid to <a href="/contact">get in touch</a>.</p>
+        <p>Don't have an account? <a href="#!/sign-up">Sign up here.</a></p>
     </div>
+</div>
 
-    <div class="field">
-        <label for="password">Password</label>
-        <input type="password" name="password">
-    </div>
+<div class="wrapper wrapper-narrow">
+    <form class="form" action="sign-in">
+        <div class="field">
+            <label for="email">Email Address</label>
+            <input type="email" name="email" autofocus>
+        </div>
 
-    <div class="field">
-        <button type="submit">Sign In</button>
-    </div>
-</form>
+        <div class="field">
+            <label for="password">Password</label>
+            <input type="password" name="password">
+        </div>
+
+        <div class="field">
+            <button type="submit" class="secondary">Sign In</button>
+        </div>
+    </form>
+</div>

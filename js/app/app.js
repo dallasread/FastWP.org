@@ -11,6 +11,38 @@ var Router = require('./utils/router'),
                     window.location.hash = $el.attr('href');
                     return false;
                 }
+            },
+            fieldFocus: {
+                event: 'focus',
+                target: '.field input, .field select, .field textarea',
+                listener: function(e, $el) {
+                    $el.closest('.field').addClass('focus');
+                }
+            },
+            fieldBlur: {
+                event: 'blur',
+                target: '.field input, .field select, .field textarea',
+                listener: function(e, $el) {
+                    $el.closest('.field').removeClass('focus');
+                }
+            },
+            focusFirst: {
+                event: 'click',
+                target: '.focus-first',
+                listener: function(e, $el) {
+                    $el.closest('[data-main]').find('input:visible, textarea:visible, select:visible').first().trigger('focus');
+                    return false;
+                }
+            },
+            goBack: {
+                event: 'click',
+                target: '.header [href="#!/"].active',
+                listener: function(e, $el) {
+                    if ($(window).width() < 820) {
+                        window.history.go(-1);
+                        return false;
+                    }
+                }
             }
         }
     };
@@ -23,7 +55,7 @@ function getCookie(name) {
 
 var App = Router.generate(function App($element, options) {
     var _ = this,
-        authToken = getCookie('FWP-API-authToken');
+        path = window.location.hash;
 
     _.defineProperties({
         routes: require('./routes'),
@@ -32,45 +64,62 @@ var App = Router.generate(function App($element, options) {
 
     _.supercreate($element, config, options);
 
-    if (authToken) {
-        _.auth({ authToken: authToken }, function(err, user) {
-            if (!err) {
-                _.user = user;
-                _.go('/');
-                _.update(_);
-            }
-        });
-    }
+    _.api('/me', {
+        method: 'GET',
+        credentials: 'apiTokenCookie'
+    }, function(err, user) {
+        if (err) {
+            // _.go(_.current || window.location.hash || '/');
+        } else {
+            _.user = user;
+            _.go(path || '/');
+            _.update(_);
+        }
+    });
 });
 
 App.definePrototype({
-    auth: function auth(credentials, done) {
+    api: function api(path, options, done) {
         var _ = this,
             headers = {},
             authTokenString = '';
 
-        if (credentials.authToken) {
-            authTokenString = '?auth_token=' + credentials.authToken;
-        } else {
+        if (!path || !options.method) return done(null, null);
+
+        if (options.credentials === 'apiTokenCookie') {
+            var authToken = getCookie('FWP-API-authToken');
+            if (!authToken) return done(null, null);
+            authTokenString = '?auth_token=' + authToken;
+        } else if (options.credentials) {
             headers = {
-                Authorization: 'Basic ' + btoa(credentials.email + ':' + credentials.password)
+                Authorization: 'Basic ' + btoa(options.credentials.email + ':' + options.credentials.password)
             };
         }
 
         $.ajax({
-            url: _.apiURL + '/me' + authTokenString,
+            method: options.method,
+            url: _.apiURL + path + authTokenString,
             headers: headers,
             complete: function(data) {
-                var user;
-
-                try {
-                    user = JSON.parse(data.responseText);
-                } catch (e) {}
-
-                document.cookie = 'FWP-API-authToken=' + (user ? user.auth_token : '') + ';';
-                done(!user || user.errors, user);
+                data = data.responseJSON;
+                done(!data || data.errors, data);
             }
         });
+    },
+
+    setAuthToken: function setAuthToken(authToken) {
+        if (typeof authToken !== 'string') return;
+        document.cookie = 'FWP-API-authToken=' + authToken + ';';
+    },
+
+    loading: function loading() {
+        var _ = this;
+        _.$element.find('.loading').stop().show();
+    },
+
+    unloading: function unloading() {
+        var _ = this;
+        _.$element.find('.loading').stop().fadeOut();
     }
 });
 

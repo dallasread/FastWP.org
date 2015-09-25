@@ -18,8 +18,9 @@
 <script type="text/javascript">
     $ = jQuery.noConflict();
     $('body').addClass('fwp');
-    FWP.create('.fwp', {
-        apiURL: 'http://localhost:3000'
+    window.FWP = window.FWP.create('.fwp', {
+        apiURL: 'http://localhost:3000',
+        assetsURL: '<?php echo get_template_directory_uri(); ?>'
     });
 </script>
 

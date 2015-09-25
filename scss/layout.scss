@@ -36,9 +36,14 @@ button, .button {
     display: inline-block;
     font-size: $font-medium;
     cursor: pointer;
+    text-align: center;
 
     &.secondary {
         background: $secondary;
+    }
+
+    &.small {
+        padding: $font-small / 2 $font-small;
     }
 }
 
@@ -121,4 +126,12 @@ i, em {
 .highlight {
     background: #ffee50;
     color: #111;
+}
+
+.spin {
+    @include spin();
+}
+
+.float-right {
+    float: right;
 }

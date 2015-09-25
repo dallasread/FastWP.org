@@ -1,17 +1,24 @@
-<form action="edit">
-    <a href="#!/sign-out">Sign Out</a>
+<div class="wrapper wrapper-medium">
+    <p>
+        Use this page to change your account's settings.
+        If you're looking to end your session, <a href="#!/sign-out">click here to sign out.</a>
+    </p>
+</div>
 
-    <div class="field">
-        <label for="email">Email Address</label>
-        <input type="email" name="email">
-    </div>
+<div class="wrapper wrapper-narrow">
+    <form class="form" action="edit">
+        <div class="field">
+            <label for="email">Email Address</label>
+            <input type="email" name="email" value="{{app/user/email}}">
+        </div>
 
-    <div class="field">
-        <label for="password">Password</label>
-        <input type="password" name="password">
-    </div>
+        <!-- <div class="field">
+            <label for="password">Password</label>
+            <input type="password" name="password">
+        </div> -->
 
-    <div class="field">
-        <button type="submit">Save My Account</button>
-    </div>
-</form>
+        <div class="field">
+            <button type="submit" class="secondary">Save My Account</button>
+        </div>
+    </form>
+</div>

@@ -1,1 +1,30 @@
-Backups.
+<div class="form wrapper wrapper-medium">
+    <div class="field">
+        <h2>We've got you covered.</h2>
+        <p>How many times have you lost valuable data? Never again! We've got your back with our automated and manual backups.</p>
+        <a href="!" class="button secondary">Backup Now</a>
+    </div>
+</div>
+
+<div class="wrapper wrapper-table">
+    <table>
+        <tbody>
+            {{#each app/user/installations}}
+                <tr>
+                    <td><a href="#!/installations/{{id}}">August 15, 2015</a></td>
+                    <td><a href="#!/installations/{{id}}">10:31 AM</a></td>
+                    <td class="desktop-only"><a href="#!/installations/{{id}}/clone" class="button small">Restore</a></td>
+                    <td class="desktop-only"><a href="#!/installations/{{id}}/history" class="button small">Duplicate</a></td>
+                </tr>
+            {{/each}}
+
+            <tr class="mobile-only">
+                <td colspan="3">
+                    <a href="#!/my-account">
+                        My Account
+                    </a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

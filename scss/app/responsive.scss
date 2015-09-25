@@ -1,0 +1,27 @@
+@media (max-width: 820px) {
+    .fwp {
+        .header h2 {
+            display: block;
+            width: 100%;
+        }
+
+        .content {
+            .main {
+                padding: $font-small;
+            }
+        }
+
+        .wrapper {
+            &.wrapper-narrow, &.wrapper-medium {
+                margin: 0 auto $font-large * 1.5;
+            }
+
+            &.wrapper-table {
+                margin-top: -$font-small;
+                margin-bottom: $font-small;
+                margin-left: -$font-small;
+                margin-right: -$font-small;
+            }
+        }
+    }
+}

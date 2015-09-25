@@ -1,0 +1,66 @@
+.fwp {
+    .header {
+        @include clearfix();
+
+        background: $primary;
+        color: #fff;
+
+        h1, h2 {
+            width: auto;
+            font-size: $font-xlarge;
+            color: #fff;
+            float: left;
+            line-height: 1;
+
+            a {
+                padding: $font-large;
+
+                i {
+                    margin-top: -5px;
+                    padding-bottom: 4px;
+                }
+            }
+        }
+
+        h1 {
+            padding: $font-large $font-large;
+        }
+
+        a {
+            display: inline-block;
+
+            &[href] {
+                opacity: 0.5;
+
+                &:hover {
+                    opacity: 1.0;
+                }
+            }
+
+            &.active {
+                opacity: 1.0;
+                background: rgba(255, 255, 255, 0.8);
+                color: $primary;
+            }
+        }
+
+        .menu {
+            text-transform: uppercase;
+            line-height: 1;
+            font-size: $font-medium;
+            float: right;
+
+            &.installation-menu {
+                float: left;
+            }
+
+            li {
+                display: inline-block;
+            }
+
+            a {
+                padding: $font-xlarge + 2 $font-medium $font-xlarge - 1;
+            }
+        }
+    }
+}

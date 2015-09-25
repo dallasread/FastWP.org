@@ -27,20 +27,27 @@ var AccountsSignIn = Route.generate(function AccountsSignIn(options) {
     ];
 
     _.supercreate(options, config);
-    _.defineProperties({
-        title: 'Sign In'
-    });
 });
 
 AccountsSignIn.definePrototype({
     signIn: function signIn(credentials) {
         var _ = this;
 
-        _.app.auth(credentials, function (err, user) {
-            if (err) return alert('Could not sign in.');
+        _.app.loading();
+
+        _.app.api('/me', {
+            method: 'GET',
+            credentials: credentials
+        }, function (err, user) {
+            if (err) {
+                alert('Could not sign in.');
+                window.location = window.location.href.split('#')[0];
+                return;
+            }
 
             _.app.user = user;
             _.app.go('/');
+            _.app.setAuthToken(user && user.auth_token);
         });
     }
 });

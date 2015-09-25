@@ -11,8 +11,6 @@ var Router = CustomElement.generate(function Router($element, config, options) {
         routesCache: {}
     });
 
-    _.go(_.current || window.location.hash || '/');
-
     $(window).on('hashchange', function() {
         var path = window.location.hash;
         _.go(path);
@@ -75,7 +73,7 @@ Router.definePrototype({
 
         if (!uri.route) return;
 
-        cache = _.routesCache[Key(uri)];
+        cache = false && _.routesCache[Key(uri)];
 
         if (cache) {
             _.current = cache;
@@ -88,7 +86,7 @@ Router.definePrototype({
             }
         }
 
-        _.$element.find('[data-main]').html( '<p class="loading">Loading...</p>' );
+        _.loading();
         _.$element.find('[href]').removeClass('active');
         _.$element.find('[href="#!' + uri.path + '"]').addClass('active');
 
@@ -97,13 +95,23 @@ Router.definePrototype({
 
             _.$element.find('[data-main]').html( _.current.$element );
 
+            // if (cache) {
+            //     _.current.parseInteractions(_.current.interactions);
+            // }
+
             _.update(_);
             _.current.update(_.current);
+            _.current.$element.find('[autofocus]:first').trigger('focus');
 
             _.$element.find('[href]').removeClass('active');
             _.$element.find('[href="#!' + uri.path + '"]').addClass('active');
+
+            _.unloading();
         });
-    }
+    },
+
+    loading: function loading() {},
+    unloading: function unloading() {}
 });
 
 module.exports = window.FWP = Router;
