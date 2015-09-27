@@ -38,7 +38,7 @@
             p {
                 color: $dark-gray;
 
-                a {
+                a:not(button):not(.button) {
                     color: $primary;
                     border-bottom: 2px solid $primary;
                 }

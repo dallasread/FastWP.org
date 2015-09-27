@@ -8,14 +8,42 @@
 <div class="wrapper wrapper-narrow">
     <form class="form" action="edit">
         <div class="field">
-            <label for="email">Email Address</label>
-            <input type="email" name="email" value="{{app/user/email}}">
+            <label for="name">Your Name</label>
+            <input type="text" name="name" id="name" value="{{app/user/name}}" autofocus="true">
         </div>
 
-        <!-- <div class="field">
-            <label for="password">Password</label>
-            <input type="password" name="password">
-        </div> -->
+        <div class="field">
+            <label for="email">Email Address</label>
+            <input type="email" name="email" id="email" value="{{app/user/email}}">
+        </div>
+
+        <div class="field">
+            <label for="password">New Password (if changing)</label>
+            <input type="password" name="password" id="password">
+        </div>
+
+        <div class="field">
+            <label for="plan">Your Plan</label>
+            <select name="plan_id" id="plan">
+                {{#each app/plans}}
+                    <option value="{{id}}" {{#if isSelected}}selected{{/if}}>{{name}}</option>
+                {{/each}}
+                <option disabled>============</option>
+                <option value="">No Plan / Cancel My Plan</option>
+            </select>
+        </div>
+
+        <div class="field non-cc-field">
+            <p><a href="#" class="change-cc">Change my credit card.</a></p>
+        </div>
+
+        <div class="field cc-field">
+            <label for="number">Credit Card</label>
+            <input type="text" data-stripe="number" id="number" placeholder="Card Number">
+            <input type="text" data-stripe="exp-month" placeholder="Expiry Month (MM)">
+            <input type="text" data-stripe="exp-year" placeholder="Expiry Year (YY)">
+            <input type="text" data-stripe="cvc" placeholder="CCV">
+        </div>
 
         <div class="field">
             <button type="submit" class="secondary">Save My Account</button>

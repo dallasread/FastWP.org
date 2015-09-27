@@ -1,23 +1,8 @@
-<!--<div class="sidebar">
-    <ul>
-        <li><a href="#!/my-account">My Account</a></li>
-        <li><a href="#!/">Installations</a></li>
-        {{#each }}
-            <li>
-                <a href="#!/installations/{{id}}">
-                    <i class="glyphicons glyphicons-cardio"></i>
-                    {{name}}
-                </a>
-            </li>
-        {{/each}}
-    </ul>
-</div>-->
-
 <div class="content">
     <div class="header">
         <div class="mobile-only">
             <h2>
-                {{#with current/installation}}
+                {{#with current/site}}
                     <a>
                         {{domain}}
                     </a>
@@ -46,17 +31,18 @@
                 </h2>
             {{/if}}
 
-            {{#with current/installation}}
+            {{#with current/site}}
                 <h1>
                     {{domain}}
                 </h1>
 
-                <ul class="installation-menu menu">
-                    <li><a href="#!/installations/{{id}}">Status</a></li>
-                    <li><a href="#!/installations/{{id}}/backups">Backups</a></li>
-                    <!-- <li><a href="#!/installations/{{id}}/clone">Clone</a></li> -->
-                    <li><a href="#!/installations/{{id}}/ssl">SSL</a></li>
-                    <li><a href="#!/installations/{{id}}/destroy">Destroy</a></li>
+                <ul class="site-menu menu">
+                    <li><a href="#!/sites/{{id}}/edit">Edit</a></li>
+                    <li><a href="#!/sites/{{id}}">Status</a></li>
+                    <li><a href="#!/sites/{{id}}/backups">Backups</a></li>
+                    <li><a href="#!/sites/{{id}}/clone">Clone</a></li>
+                    <!-- <li><a href="#!/sites/{{id}}/ssl">SSL</a></li> -->
+                    <li><a href="#!/sites/{{id}}/destroy">Destroy</a></li>
                 </ul>
             {{else}}
                 <h1>
@@ -70,8 +56,17 @@
 
             {{#if user}}
                 <ul class="accounts-menu menu">
-                    <li><a href="#!/">Installations</a></li>
-                    <li><a href="#!/my-account">My Account</a></li>
+                    <li>
+                        <a href="#!/sites/new">
+                            <i class="glyphicons glyphicons-plus"></i>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#!/">Sites</a>
+                    </li>
+                    <li>
+                        <a href="#!/my-account">My Account</a>
+                    </li>
                     <!-- <li><a href="#!/sign-out">Sign Out</a></li> -->
                 </ul>
             {{/if}}

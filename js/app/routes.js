@@ -5,9 +5,12 @@ module.exports = {
     '/sign-up': require('./controllers/accounts/sign-up'),
     '/sign-out': require('./controllers/accounts/sign-out'),
 
-    '/': require('./controllers/installations/index'),
-    '/installations/:id': require('./controllers/installations/show'),
-    '/installations/:id/backups': require('./controllers/installations/backups'),
-    '/installations/:id/ssl': require('./controllers/installations/ssl'),
-    '/installations/:id/destroy': require('./controllers/installations/destroy'),
+    '/': require('./controllers/sites/index'),
+    '/sites/new': require('./controllers/sites/form'),
+    '/sites/:id': require('./controllers/sites/show'),
+    '/sites/:id/edit': require('./controllers/sites/form'),
+    '/sites/:id/clone': require('./controllers/sites/clone'),
+    '/sites/:id/backups': require('./controllers/sites/backups'),
+    '/sites/:id/ssl': require('./controllers/sites/ssl'),
+    '/sites/:id/destroy': require('./controllers/sites/destroy'),
 };

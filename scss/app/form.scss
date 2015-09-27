@@ -33,7 +33,7 @@
                 margin-bottom: $font-small / 2;
             }
 
-            input:not([type="checkbox"]) {
+            input:not([type="checkbox"]), select, textarea {
                 font-size: $font-large;
                 line-height: 1.8;
                 padding: $font-medium / 2 $font-medium;
@@ -50,7 +50,7 @@
                 }
             }
 
-            input:not([type="checkbox"]), button, .button {
+            input:not([type="checkbox"]), select, textarea, button, .button {
                 width: 100%;
                 display: block;
             }
@@ -61,6 +61,4 @@
             }
         }
     }
-
-
 }

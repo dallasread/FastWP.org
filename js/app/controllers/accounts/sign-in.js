@@ -23,7 +23,8 @@ var AccountsSignIn = Route.generate(function AccountsSignIn(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./signed-in-redirect')(_),
+        require('../helpers/find-user')(_, true),
+        require('../helpers/signed-in-redirect')(_)
     ];
 
     _.supercreate(options, config);
@@ -37,11 +38,12 @@ AccountsSignIn.definePrototype({
 
         _.app.api('/me', {
             method: 'GET',
+            public: true,
             credentials: credentials
         }, function (err, user) {
             if (err) {
-                alert('Could not sign in.');
-                window.location = window.location.href.split('#')[0];
+                alert('Invalid login credentials.');
+                _.app.unloading();
                 return;
             }
 

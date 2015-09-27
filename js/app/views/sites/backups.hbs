@@ -9,12 +9,12 @@
 <div class="wrapper wrapper-table">
     <table>
         <tbody>
-            {{#each app/user/installations}}
+            {{#each app/user/sites}}
                 <tr>
-                    <td><a href="#!/installations/{{id}}">August 15, 2015</a></td>
-                    <td><a href="#!/installations/{{id}}">10:31 AM</a></td>
-                    <td class="desktop-only"><a href="#!/installations/{{id}}/clone" class="button small">Restore</a></td>
-                    <td class="desktop-only"><a href="#!/installations/{{id}}/history" class="button small">Duplicate</a></td>
+                    <td><a href="#!/sites/{{id}}">August 15, 2015</a></td>
+                    <td><a href="#!/sites/{{id}}">10:31 AM</a></td>
+                    <td class="desktop-only"><a href="#!/sites/{{id}}/clone" class="button small">Restore</a></td>
+                    <td class="desktop-only"><a href="#!/sites/{{id}}/history" class="button small">Duplicate</a></td>
                 </tr>
             {{/each}}
 

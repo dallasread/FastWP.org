@@ -1,0 +1,25 @@
+.fwp {
+    .graph {
+        text-align: center;
+
+        &.graph-number {
+            padding: $font-large * 2 $font-medium;
+            background: #eee; // url(imgs/graph.jpg) right center #eee;
+            border-radius: 4px;
+            margin-bottom: $font-xlarge;
+
+            h1 {
+                font-size: $font-xlarge * 2;
+                line-height: 1;
+                color: $primary;
+                letter-spacing: -5epx;
+            }
+
+            p {
+                margin: 0;
+                color: $medium-gray;
+                font-size: $font-medium;
+            }
+        }
+    }
+}

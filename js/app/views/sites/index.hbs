@@ -1,0 +1,32 @@
+<div class="wrapper">
+    <p class="float-left">
+        You've used <b class="primary">12 GB</b> out of <b class="primary">20 GB</b> of disk space.<br>
+        Need more space? <a href="#!/my-account">Upgrade Your Plan.</a>
+    </p>
+    <p class="float-right">
+        <a href="#!/sites/new" class="button secondary large">Add A Site</a>
+    </p>
+</div>
+
+<div class="wrapper wrapper-table">
+    <table>
+        <tbody>
+            {{#each app/user/sites}}
+                <tr>
+                    <td><a href="#!/sites/{{id}}">{{domain}}</a></td>
+                    <td class="desktop-only"><a href="#!/sites/{{id}}/clone">Clone</a></td>
+                    <td class="desktop-only"><a href="#!/sites/{{id}}/backups">Backups</a></td>
+                    <td class="desktop-only"><a href="#!/sites/{{id}}/destroy">Destroy</a></td>
+                </tr>
+            {{/each}}
+
+            <tr class="mobile-only">
+                <td colspan="3">
+                    <a href="#!/my-account">
+                        My Account
+                    </a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

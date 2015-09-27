@@ -55,28 +55,13 @@ function getCookie(name) {
 }
 
 var App = Router.generate(function App($element, options) {
-    var _ = this,
-        path = window.location.hash;
+    var _ = this;
 
     _.defineProperties({
-        routes: require('./routes'),
-        installations: {}
+        routes: require('./routes')
     });
 
     _.supercreate($element, config, options);
-
-    _.api('/me', {
-        method: 'GET',
-        credentials: 'apiTokenCookie'
-    }, function(err, user) {
-        if (err) {
-            // _.go(_.current || window.location.hash || '/');
-        } else {
-            _.user = user;
-            _.go(path || '/');
-            _.update(_);
-        }
-    });
 });
 
 App.definePrototype({
@@ -87,23 +72,31 @@ App.definePrototype({
 
         if (!path || !options.method) return done(null, null);
 
-        if (options.credentials === 'apiTokenCookie') {
-            var authToken = getCookie('FWP-API-authToken');
-            if (!authToken) return done(null, null);
-            authTokenString = '?auth_token=' + authToken;
-        } else if (options.credentials) {
+        if (typeof options.credentials === 'object') {
             headers = {
                 Authorization: 'Basic ' + btoa(options.credentials.email + ':' + options.credentials.password)
             };
+        } else if (!options.public) {
+            var authToken = getCookie('FWP-API-authToken');
+            if (!authToken) return done(['You are not logged in.'], null);
+            authTokenString = '?auth_token=' + authToken;
         }
 
         $.ajax({
             method: options.method,
             url: _.apiURL + path + authTokenString,
             headers: headers,
+            data: options.data,
             complete: function(data) {
                 data = data.responseJSON;
-                done(!data || data.errors, data);
+
+                if (!data) {
+                    data = {
+                        errors: ['Something went wrong. Please try again.']
+                    };
+                }
+
+                done(data && data.errors, data);
             }
         });
     },
@@ -126,11 +119,38 @@ App.definePrototype({
 
 module.exports = window.FWP = App;
 
-},{"./routes":14,"./utils/router":17,"./views/application/index.hbs":22}],2:[function(require,module,exports){
+},{"./routes":18,"./utils/router":21,"./views/application/index.hbs":27}],2:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
             index: require('../../views/accounts/edit.hbs')
+        },
+        interactions: {
+            signUp: {
+                event: 'submit',
+                target: '.form[action="edit"]',
+                listener: function signUpInteraction(e, $el) {
+                    var _ = this;
+                    _.edit({
+                        name: $el.find('[name="name"]').val(),
+                        email: $el.find('[name="email"]').val(),
+                        password: $el.find('[name="password"]').val(),
+                        plan_id: $el.find('[name="plan_id"]').val()
+                    });
+                    return false;
+                }
+            },
+            changeCC: {
+                event: 'click',
+                target: '.change-cc',
+                listener: function changeCard(e, $el) {
+                    var _ = this;
+                    _.$element.find('.non-cc-field').remove();
+                    _.$element.find('.cc-field').fadeIn();
+                    _.$element.find('.cc-field input:visible:first').trigger('focus');
+                    return false;
+                }
+            }
         }
     };
 
@@ -138,7 +158,9 @@ var AccountsEdit = Route.generate(function AccountsEdit(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./find-user')(_)
+        require('../helpers/find-user')(_),
+        require('../helpers/include-stripe')(_),
+        require('../helpers/find-plans')(_)
     ];
 
     _.defineProperties({
@@ -149,19 +171,57 @@ var AccountsEdit = Route.generate(function AccountsEdit(options) {
 });
 
 AccountsEdit.definePrototype({
+    edit: function edit(data) {
+        var _ = this,
+            $form = _.$element.find('.form[action="edit"]'),
+            cc = $form.find('#number').val();
+
+        $form.attr('disabled', true);
+
+        if (cc.length) {
+            window.Stripe.card.createToken($form, function(status, response) {
+                if (response.error) {
+                    alert(response.error.message);
+                    $form.removeAttr('disabled');
+                } else {
+                    data.stripe_token = response.id;
+                    _.submit(data);
+                }
+            });
+        } else {
+            _.submit(data);
+        }
+    },
+
+    submit: function submit(data) {
+        var _ = this,
+            $form = _.$element.find('.form[action="edit"]');
+
+        $form.attr('disabled', true);
+
+        if (!data.password.length) delete data.password;
+
+        _.app.api('/users/' + _.app.user.id, {
+            method: 'PUT',
+            data: data
+        }, function(err, user) {
+            $form.removeAttr('disabled');
+
+            if (err) {
+                alert(err.join(', '));
+                return;
+            }
+
+            alert('Your account has been saved!');
+
+            _.app.user = user;
+        });
+    }
 });
 
 module.exports = AccountsEdit;
 
-},{"../../utils/route":16,"../../views/accounts/edit.hbs":18,"./find-user":3}],3:[function(require,module,exports){
-module.exports = function(route) {
-    return function findUser(done) {
-        if (!route.app.user) return done('/sign-in');
-        done();
-    };
-};
-
-},{}],4:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/accounts/edit.hbs":23,"../helpers/find-plans":6,"../helpers/find-user":8,"../helpers/include-stripe":9}],3:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
@@ -187,7 +247,8 @@ var AccountsSignIn = Route.generate(function AccountsSignIn(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./signed-in-redirect')(_),
+        require('../helpers/find-user')(_, true),
+        require('../helpers/signed-in-redirect')(_)
     ];
 
     _.supercreate(options, config);
@@ -201,11 +262,12 @@ AccountsSignIn.definePrototype({
 
         _.app.api('/me', {
             method: 'GET',
+            public: true,
             credentials: credentials
         }, function (err, user) {
             if (err) {
-                alert('Could not sign in.');
-                window.location = window.location.href.split('#')[0];
+                alert('Invalid login credentials.');
+                _.app.unloading();
                 return;
             }
 
@@ -218,7 +280,7 @@ AccountsSignIn.definePrototype({
 
 module.exports = AccountsSignIn;
 
-},{"../../utils/route":16,"../../views/accounts/sign-in.hbs":19,"./signed-in-redirect":7}],5:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/accounts/sign-in.hbs":24,"../helpers/find-user":8,"../helpers/signed-in-redirect":10}],4:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
@@ -242,7 +304,7 @@ var AccountsSignOut = Route.generate(function AccountsSignOut(options) {
 
 module.exports = AccountsSignOut;
 
-},{"../../utils/route":16,"../../views/accounts/sign-out.hbs":20}],6:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/accounts/sign-out.hbs":25}],5:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
@@ -256,7 +318,8 @@ var Route = require('../../utils/route'),
                     var _ = this;
                     _.signUp({
                         email: $el.find('[name="email"]').val(),
-                        password: $el.find('[name="password"]').val()
+                        password: $el.find('[name="password"]').val(),
+                        plan_id: $el.find('[name="plan_id"]').val()
                     });
                     return false;
                 }
@@ -268,7 +331,9 @@ var AccountsSignUp = Route.generate(function AccountsSignUp(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./signed-in-redirect')(_),
+        require('../helpers/signed-in-redirect')(_),
+        require('../helpers/include-stripe')(_),
+        require('../helpers/find-plans')(_)
     ];
 
     _.supercreate(options, config);
@@ -276,58 +341,213 @@ var AccountsSignUp = Route.generate(function AccountsSignUp(options) {
 
 AccountsSignUp.definePrototype({
     signUp: function signUp(data) {
-        var _ = this;
+        var _ = this,
+            $form = _.$element.find('[action="sign-up"]');
 
-        _.app.api('/users', {
-            method: 'POST'
-        }, function(err, user) {
-            if (err) return alert(err.join(', '));
+        $form.attr('disabled', true);
 
-            _.app.user = user;
-            _.app.go('/');
-            _.app.setAuthToken(user && user.auth_token);
+        window.Stripe.card.createToken($form, function(status, response) {
+            if (response.error) {
+                alert(response.error.message);
+                $form.removeAttr('disabled');
+            } else {
+                _.app.api('/users', {
+                    method: 'POST',
+                    public: true,
+                    data: {
+                        name: $form.find('[name="name"]').val(),
+                        email: $form.find('[name="email"]').val(),
+                        password: $form.find('[name="password"]').val(),
+                        stripe_token: response.id
+                    }
+                }, function(err, user) {
+                    if (err) {
+                        $form.removeAttr('disabled');
+                        alert(err.join(', '));
+                        return;
+                    }
+
+
+                    console.log(user);
+
+                    _.app.user = user;
+                    _.app.go('/');
+                    _.app.setAuthToken(user && user.auth_token);
+                });
+            }
         });
     }
 });
 
 module.exports = AccountsSignUp;
 
-},{"../../utils/route":16,"../../views/accounts/sign-up.hbs":21,"./signed-in-redirect":7}],7:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/accounts/sign-up.hbs":26,"../helpers/find-plans":6,"../helpers/include-stripe":9,"../helpers/signed-in-redirect":10}],6:[function(require,module,exports){
+module.exports = function(route) {
+    return function findPlans(done) {
+        var _ = route.app;
+
+        if (_.plans) return done();
+
+        _.api('/plans', {
+            method: 'GET',
+            public: true
+        }, function(err, plans) {
+            var plan;
+
+            for (var i = 0; i < plans.length; i++) {
+                plan = plans[i];
+
+                if (!_.user || _.user.plan_id === plan.id) {
+                    plan.isSelected = true;
+                    break;
+                }
+            }
+
+            _.plans = plans;
+
+            done();
+        });
+    };
+};
+
+},{}],7:[function(require,module,exports){
+module.exports = function(route) {
+    return function findSite(done) {
+        if (route.app.user.sites[route.params.id]) {
+            route.site = route.app.user.sites[route.params.id];
+        }
+
+        done();
+    };
+};
+
+},{}],8:[function(require,module,exports){
+module.exports = function(route, silent) {
+    return function findUser(done) {
+        var _ = route.app;
+
+        if (_.user) return done();
+
+        _.api('/me', {
+            method: 'GET'
+        }, function(err, user) {
+            if (err) {
+                done(silent ? null : '/sign-in');
+            } else {
+                _.user = user;
+                done();
+            }
+        });
+    };
+};
+
+},{}],9:[function(require,module,exports){
+var Load = require('../../vendor/external-loader.js');
+
+module.exports = function(route) {
+    return function includeStripe(done) {
+        if (route.app.stripePresent) return done();
+
+        Load('https://js.stripe.com/v2/', function() {
+            route.app.stripePresent = true;
+            // window.Stripe.setPublishableKey('pk_live_hOZGljGLYRL4CbLOdkPQb5Qv');
+            window.Stripe.setPublishableKey('pk_test_oKHPyl4KjoUGQilILY1NmnZ3');
+            done();
+        });
+    };
+};
+
+},{"../../vendor/external-loader.js":22}],10:[function(require,module,exports){
 module.exports = function(route) {
     return function signedInRedirect(done) {
         done(route.app.user ? '/' : null);
     };
 };
 
-},{}],8:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
-            index: require('../../views/installations/backups.hbs')
+            index: require('../../views/sites/backups.hbs')
         }
     };
 
-var InstallationsBackups = Route.generate(function InstallationsBackups(options) {
+var SitesBackups = Route.generate(function SitesBackups(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('../accounts/find-user')(_),
-        require('./find-installation')(_)
+        require('../helpers/find-user')(_),
+        require('../helpers/find-site')(_)
     ];
 
     _.supercreate(options, config);
 });
 
-InstallationsBackups.definePrototype({
+SitesBackups.definePrototype({
 });
 
-module.exports = InstallationsBackups;
+module.exports = SitesBackups;
 
-},{"../../utils/route":16,"../../views/installations/backups.hbs":23,"../accounts/find-user":3,"./find-installation":10}],9:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/sites/backups.hbs":28,"../helpers/find-site":7,"../helpers/find-user":8}],12:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
-            index: require('../../views/installations/destroy.hbs')
+            index: require('../../views/sites/clone.hbs')
+        },
+        interactions: {
+            submit: {
+                event: 'submit',
+                target: '[action="site-clone"]',
+                listener: function (e, $el) {
+                    var _ = this;
+
+                    _.clone({
+                        domain: $el.find('[name="domain"]').val()
+                    });
+
+                    return false;
+                }
+            }
+        }
+    };
+
+var SitesShow = Route.generate(function SitesShow(options) {
+    var _ = this;
+
+    _.beforeFilters = [
+        require('../helpers/find-user')(_),
+        require('../helpers/find-site')(_)
+    ];
+
+    _.supercreate(options, config);
+});
+
+SitesShow.definePrototype({
+    clone: function clone(data) {
+        var _ = this;
+
+        _.app.api('/sites/' + _.site.id + '/clone', {
+            method: 'POST',
+            data: data
+        }, function(err, site) {
+            if (err) {
+                alert(err.join(', '));
+            } else {
+                alert('Site cloned successfully!');
+                _.app.user.sites[site.id] = site;
+                _.app.go('/sites/' + site.id);
+            }
+        });
+    }
+});
+
+module.exports = SitesShow;
+
+},{"../../utils/route":20,"../../views/sites/clone.hbs":29,"../helpers/find-site":7,"../helpers/find-user":8}],13:[function(require,module,exports){
+var Route = require('../../utils/route'),
+    config = {
+        templates: {
+            index: require('../../views/sites/destroy.hbs')
         },
         interactions: {
             domainChecker: {
@@ -343,18 +563,33 @@ var Route = require('../../utils/route'),
                         $form.attr('disabled', true);
                     }
                 }
+            },
+            submit: {
+                event: 'submit',
+                target: '.form[action="destroy"]',
+                listener: function (e, $el) {
+                    var _ = this;
+
+                    if ($el.attr('disabled')) {
+                        alert('Please enter the domain name to confirm your intentions.');
+                    } else {
+                        _.destroy();
+                    }
+
+                    return false;
+                }
             }
         }
     };
 
-var InstallationsDestroy = Route.generate(function InstallationsDestroy(options) {
+var SitesDestroy = Route.generate(function SitesDestroy(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('../accounts/find-user')(_),
-        require('./find-installation')(_),
+        require('../helpers/find-user')(_),
+        require('../helpers/find-site')(_),
         function setDomain(done) {
-            _.domain = _.installation.domain.toLowerCase();
+            _.domain = _.site.domain.toLowerCase();
             done();
         }
     ];
@@ -362,107 +597,172 @@ var InstallationsDestroy = Route.generate(function InstallationsDestroy(options)
     _.supercreate(options, config);
 });
 
-InstallationsDestroy.definePrototype({
+SitesDestroy.definePrototype({
+    destroy: function destroy() {
+        var _ = this;
+
+        _.app.api('/sites/' + _.site.id, {
+            method: 'DELETE'
+        }, function(err, site) {
+            if (err) {
+                alert(err.join(', '));
+            } else {
+                alert('Site deleted successfully!');
+                delete _.app.user.sites[_.site.id];
+                _.app.go('/');
+            }
+        });
+    }
 });
 
-module.exports = InstallationsDestroy;
+module.exports = SitesDestroy;
 
-},{"../../utils/route":16,"../../views/installations/destroy.hbs":24,"../accounts/find-user":3,"./find-installation":10}],10:[function(require,module,exports){
-module.exports = function(route) {
-    return function findInstallation(done) {
-        if (route.app.user.installations[route.params.id]) {
-            route.installation = route.app.user.installations[route.params.id];
-            return done();
-        }
-
-        setTimeout(function() {
-            // route.installation = route.app.[route.params.id] = {
-            //     name: 'Hi',
-            //     id: route.params.id
-            // };
-
-            done();
-        }, 500);
-    };
-};
-
-},{}],11:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/sites/destroy.hbs":30,"../helpers/find-site":7,"../helpers/find-user":8}],14:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
-            index: require('../../views/installations/index.hbs')
+            index: require('../../views/sites/form.hbs')
+        },
+        interactions: {
+            submit: {
+                event: 'submit',
+                target: '[action="site-form"]',
+                listener: function (e, $el) {
+                    var _ = this;
+
+                    _.save({
+                        domain: $el.find('[name="domain"]').val()
+                    });
+
+                    return false;
+                }
+            }
         }
     };
 
-var InstallationsIndex = Route.generate(function InstallationsIndex(options) {
+var SitesForm = Route.generate(function SitesForm(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('../accounts/find-user')(_)
+        require('../helpers/find-user')(_)
+    ];
+
+    if (options.params.id) {
+        _.beforeFilters.push(
+            require('../helpers/find-site')(_)
+        );
+    }
+
+    _.supercreate(options, config);
+});
+
+SitesForm.definePrototype({
+    save: function save(data) {
+        var _ = this,
+            url, method;
+
+        if (_.site) {
+            url = '/sites/' + _.site.id;
+            method = 'PUT';
+        } else {
+            url = '/sites';
+            method = 'POST';
+        }
+
+        _.app.api(url, {
+            method: method,
+            data: data
+        }, function(err, site) {
+            if (err) {
+                alert(err.join(', '));
+            } else {
+                alert('Site ' + (_.site ? 'updated' : 'created') + ' successfully!');
+                _.app.user.sites[site.id] = site;
+                _.app.go('/sites/' + site.id + (_.site ? '/edit' : ''), true);
+            }
+        });
+    }
+});
+
+module.exports = SitesForm;
+
+},{"../../utils/route":20,"../../views/sites/form.hbs":31,"../helpers/find-site":7,"../helpers/find-user":8}],15:[function(require,module,exports){
+var Route = require('../../utils/route'),
+    config = {
+        templates: {
+            index: require('../../views/sites/index.hbs')
+        }
+    };
+
+var SitesIndex = Route.generate(function SitesIndex(options) {
+    var _ = this;
+
+    _.beforeFilters = [
+        require('../helpers/find-user')(_)
     ];
 
     _.defineProperties({
-        title: 'Installations'
+        title: 'Sites'
     });
 
     _.supercreate(options, config);
 });
 
-InstallationsIndex.definePrototype({
+SitesIndex.definePrototype({
 
 });
 
-module.exports = InstallationsIndex;
+module.exports = SitesIndex;
 
-},{"../../utils/route":16,"../../views/installations/index.hbs":25,"../accounts/find-user":3}],12:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/sites/index.hbs":32,"../helpers/find-user":8}],16:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
-            index: require('../../views/installations/show.hbs')
+            index: require('../../views/sites/show.hbs')
         }
     };
 
-var InstallationsShow = Route.generate(function InstallationsShow(options) {
+var SitesShow = Route.generate(function SitesShow(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('../accounts/find-user')(_),
-        require('./find-installation')(_)
+        require('../helpers/find-user')(_),
+        require('../helpers/find-site')(_)
     ];
 
     _.supercreate(options, config);
 });
 
-InstallationsShow.definePrototype({
+SitesShow.definePrototype({
 });
 
-module.exports = InstallationsShow;
+module.exports = SitesShow;
 
-},{"../../utils/route":16,"../../views/installations/show.hbs":26,"../accounts/find-user":3,"./find-installation":10}],13:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/sites/show.hbs":33,"../helpers/find-site":7,"../helpers/find-user":8}],17:[function(require,module,exports){
 var Route = require('../../utils/route'),
     config = {
         templates: {
-            index: require('../../views/installations/ssl.hbs')
+            index: require('../../views/sites/ssl.hbs')
         }
     };
 
-var InstallationsSSL = Route.generate(function InstallationsSSL(options) {
+var SitesSSL = Route.generate(function SitesSSL(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('../accounts/find-user')(_),
-        require('./find-installation')(_)
+        require('../helpers/find-user')(_),
+        require('../helpers/find-site')(_)
     ];
 
     _.supercreate(options, config);
 });
 
-InstallationsSSL.definePrototype({
+SitesSSL.definePrototype({
 });
 
-module.exports = InstallationsSSL;
+module.exports = SitesSSL;
 
-},{"../../utils/route":16,"../../views/installations/ssl.hbs":27,"../accounts/find-user":3,"./find-installation":10}],14:[function(require,module,exports){
+},{"../../utils/route":20,"../../views/sites/ssl.hbs":34,"../helpers/find-site":7,"../helpers/find-user":8}],18:[function(require,module,exports){
 module.exports = {
     '/my-account': require('./controllers/accounts/edit'),
 
@@ -470,14 +770,17 @@ module.exports = {
     '/sign-up': require('./controllers/accounts/sign-up'),
     '/sign-out': require('./controllers/accounts/sign-out'),
 
-    '/': require('./controllers/installations/index'),
-    '/installations/:id': require('./controllers/installations/show'),
-    '/installations/:id/backups': require('./controllers/installations/backups'),
-    '/installations/:id/ssl': require('./controllers/installations/ssl'),
-    '/installations/:id/destroy': require('./controllers/installations/destroy'),
+    '/': require('./controllers/sites/index'),
+    '/sites/new': require('./controllers/sites/form'),
+    '/sites/:id': require('./controllers/sites/show'),
+    '/sites/:id/edit': require('./controllers/sites/form'),
+    '/sites/:id/clone': require('./controllers/sites/clone'),
+    '/sites/:id/backups': require('./controllers/sites/backups'),
+    '/sites/:id/ssl': require('./controllers/sites/ssl'),
+    '/sites/:id/destroy': require('./controllers/sites/destroy'),
 };
 
-},{"./controllers/accounts/edit":2,"./controllers/accounts/sign-in":4,"./controllers/accounts/sign-out":5,"./controllers/accounts/sign-up":6,"./controllers/installations/backups":8,"./controllers/installations/destroy":9,"./controllers/installations/index":11,"./controllers/installations/show":12,"./controllers/installations/ssl":13}],15:[function(require,module,exports){
+},{"./controllers/accounts/edit":2,"./controllers/accounts/sign-in":3,"./controllers/accounts/sign-out":4,"./controllers/accounts/sign-up":5,"./controllers/sites/backups":11,"./controllers/sites/clone":12,"./controllers/sites/destroy":13,"./controllers/sites/form":14,"./controllers/sites/index":15,"./controllers/sites/show":16,"./controllers/sites/ssl":17}],19:[function(require,module,exports){
 var crypto = require('crypto');
 
 module.exports = function key(obj) {
@@ -486,7 +789,7 @@ module.exports = function key(obj) {
     return md5.digest('hex');
 };
 
-},{"crypto":34}],16:[function(require,module,exports){
+},{"crypto":41}],20:[function(require,module,exports){
 var CustomElement = require('generate-js-custom-element'),
     Key = require('./key');
 
@@ -523,13 +826,14 @@ Route.definePrototype({
 
 module.exports = Route;
 
-},{"./key":15,"generate-js-custom-element":197}],17:[function(require,module,exports){
+},{"./key":19,"generate-js-custom-element":204}],21:[function(require,module,exports){
 var CustomElement = require('generate-js-custom-element'),
     Key = require('./key'),
     async = require('async');
 
 var Router = CustomElement.generate(function Router($element, config, options) {
-    var _ = this;
+    var _ = this,
+        path = window.location.hash;
 
     _.supercreate($element, config);
     _.defineProperties(options);
@@ -541,6 +845,8 @@ var Router = CustomElement.generate(function Router($element, config, options) {
         var path = window.location.hash;
         _.go(path);
     });
+
+    _.go(path);
 });
 
 Router.definePrototype({
@@ -587,8 +893,8 @@ Router.definePrototype({
         };
     },
 
-    go: function go(path) {
-        if (path !== window.location.hash) {
+    go: function go(path, reloadIfNecessary) {
+        if (!reloadIfNecessary && path !== window.location.hash) {
             window.location.hash = '#!' + path.replace(/[#|!]/, '');
             return;
         }
@@ -621,9 +927,9 @@ Router.definePrototype({
 
             _.$element.find('[data-main]').html( _.current.$element );
 
-            // if (cache) {
-            //     _.current.parseInteractions(_.current.interactions);
-            // }
+            if (cache) {
+                _.current.parseInteractions(_.current.interactions);
+            }
 
             _.update(_);
             _.current.update(_.current);
@@ -642,37 +948,84 @@ Router.definePrototype({
 
 module.exports = window.FWP = Router;
 
-},{"./key":15,"async":28,"generate-js-custom-element":197}],18:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-medium\">\n    <p>\n        Use this page to change your account's settings.\n        If you're looking to end your session, <a href=\"#!/sign-out\">click here to sign out.</a>\n    </p>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"edit\">\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\" value=\"{{app/user/email}}\">\n        </div>\n\n        <!-- <div class=\"field\">\n            <label for=\"password\">Password</label>\n            <input type=\"password\" name=\"password\">\n        </div> -->\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Save My Account</button>\n        </div>\n    </form>\n</div>\n";
+},{"./key":19,"async":35,"generate-js-custom-element":204}],22:[function(require,module,exports){
+function externalLoader(url, callback) {
+    var script = null;
 
-},{}],19:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>Sign In to Your Account.</h2>\n        <p>If we haven't said it lately, thanks for being a part of our community. We're always looking for new feature ideas and feedback, so don't be afraid to <a href=\"/contact\">get in touch</a>.</p>\n        <p>Don't have an account? <a href=\"#!/sign-up\">Sign up here.</a></p>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"sign-in\">\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\" autofocus>\n        </div>\n\n        <div class=\"field\">\n            <label for=\"password\">Password</label>\n            <input type=\"password\" name=\"password\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Sign In</button>\n        </div>\n    </form>\n</div>\n";
+    if (url.indexOf('js') !== -1) {
+        script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = url;
+    } else {
+        script = document.createElement( 'link' );
+        script.setAttribute( 'href', url );
+        script.setAttribute( 'rel', 'stylesheet' );
+        script.setAttribute( 'type', 'text/css' );
+    }
 
-},{}],20:[function(require,module,exports){
-module.exports = "Signed Out.\n";
+    if (script.readyState) {
+        script.onreadystatechange = function() {
+            if (script.readyState === 'loaded' || script.readyState === 'complete') {
+                script.onreadystatechange = null;
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            }
+        };
+    } else {
+        script.onload = function() {
+            if (typeof callback === 'function') {
+                callback();
+            }
+        };
+    }
 
-},{}],21:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>Try FastWordPress FREE for the next 7 days.</h2>\n        <p>We were tired of the slow, insecure, high down-time, shared hosting providers AND the pay-through-the-nose, managed WordPress platforms. So, we built the service <em>we</em> wanted.</p>\n        <p>Fast, reliable, secure, and affordable WordPress hosting with automated backups, instant roll-backs, site cloning, and SSL support. Our interface gets to the point, so you can get on with more important stuff.</p>\n        <p>We've finally shared our platform with the world and now <em>you</em>, too, can use it — just fill out the form below to <a href=\"#\" class=\"focus-first\">try it free for 7 days</a> (we won't charge your credit card until then).</p>\n        <p>Already have an account? <a href=\"#!/sign-in\">Sign in here.</a></p>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"sign-up\">\n        <div class=\"field\">\n            <label for=\"name\">Your Name</label>\n            <input type=\"text\" name=\"name\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"password\">Password</label>\n            <input type=\"password\" name=\"password\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"name\">Credit Card</label>\n            <input type=\"text\" id=\"cc_number\" placeholder=\"Card Number\">\n            <input type=\"text\" id=\"expiry\" placeholder=\"MM / YY\">\n            <input type=\"text\" id=\"ccv\" placeholder=\"CCV\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Sign In</button>\n        </div>\n    </form>\n</div>\n";
+    document.getElementsByTagName('head')[0].appendChild(script);
+}
 
-},{}],22:[function(require,module,exports){
-module.exports = "<!--<div class=\"sidebar\">\n    <ul>\n        <li><a href=\"#!/my-account\">My Account</a></li>\n        <li><a href=\"#!/\">Installations</a></li>\n        {{#each }}\n            <li>\n                <a href=\"#!/installations/{{id}}\">\n                    <i class=\"glyphicons glyphicons-cardio\"></i>\n                    {{name}}\n                </a>\n            </li>\n        {{/each}}\n    </ul>\n</div>-->\n\n<div class=\"content\">\n    <div class=\"header\">\n        <div class=\"mobile-only\">\n            <h2>\n                {{#with current/installation}}\n                    <a>\n                        {{domain}}\n                    </a>\n                {{else}}\n                    <a>\n                        {{#if current/title}}\n                            {{current/title}}\n                        {{else}}\n                            FastWordPress\n                        {{/if}}\n                    </a>\n                {{/with}}\n\n                <a href=\"#!/\" class=\"float-right\">\n                    <i class=\"glyphicons glyphicons-show-big-thumbnails\"></i>\n                </a>\n            </h2>\n        </div>\n\n        <div class=\"desktop-only\">\n            {{#if user}}\n                <h2>\n                    <a href=\"#!/\">\n                        <i class=\"glyphicons glyphicons-show-big-thumbnails\"></i>\n                    </a>\n                </h2>\n            {{/if}}\n\n            {{#with current/installation}}\n                <h1>\n                    {{domain}}\n                </h1>\n\n                <ul class=\"installation-menu menu\">\n                    <li><a href=\"#!/installations/{{id}}\">Status</a></li>\n                    <li><a href=\"#!/installations/{{id}}/backups\">Backups</a></li>\n                    <!-- <li><a href=\"#!/installations/{{id}}/clone\">Clone</a></li> -->\n                    <li><a href=\"#!/installations/{{id}}/ssl\">SSL</a></li>\n                    <li><a href=\"#!/installations/{{id}}/destroy\">Destroy</a></li>\n                </ul>\n            {{else}}\n                <h1>\n                    {{#if current/title}}\n                        {{current/title}}\n                    {{else}}\n                        FastWordPress\n                    {{/if}}\n                </h1>\n            {{/with}}\n\n            {{#if user}}\n                <ul class=\"accounts-menu menu\">\n                    <li><a href=\"#!/\">Installations</a></li>\n                    <li><a href=\"#!/my-account\">My Account</a></li>\n                    <!-- <li><a href=\"#!/sign-out\">Sign Out</a></li> -->\n                </ul>\n            {{/if}}\n        </div>\n    </div>\n\n    <div class=\"loading\">\n        <i class=\"glyphicons spin glyphicons-brightness-increase\"></i>\n    </div>\n\n    <div class=\"main\" data-main></div>\n</div>\n";
+if (typeof module !== 'undefined') {
+    module.exports = externalLoader;
+} else {
+    window.externalLoader = externalLoader;
+}
 
 },{}],23:[function(require,module,exports){
-module.exports = "<div class=\"form wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>We've got you covered.</h2>\n        <p>How many times have you lost valuable data? Never again! We've got your back with our automated and manual backups.</p>\n        <a href=\"!\" class=\"button secondary\">Backup Now</a>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-table\">\n    <table>\n        <tbody>\n            {{#each app/user/installations}}\n                <tr>\n                    <td><a href=\"#!/installations/{{id}}\">August 15, 2015</a></td>\n                    <td><a href=\"#!/installations/{{id}}\">10:31 AM</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/installations/{{id}}/clone\" class=\"button small\">Restore</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/installations/{{id}}/history\" class=\"button small\">Duplicate</a></td>\n                </tr>\n            {{/each}}\n\n            <tr class=\"mobile-only\">\n                <td colspan=\"3\">\n                    <a href=\"#!/my-account\">\n                        My Account\n                    </a>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n";
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <p>\n        Use this page to change your account's settings.\n        If you're looking to end your session, <a href=\"#!/sign-out\">click here to sign out.</a>\n    </p>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"edit\">\n        <div class=\"field\">\n            <label for=\"name\">Your Name</label>\n            <input type=\"text\" name=\"name\" id=\"name\" value=\"{{app/user/name}}\" autofocus=\"true\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\" id=\"email\" value=\"{{app/user/email}}\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"password\">New Password (if changing)</label>\n            <input type=\"password\" name=\"password\" id=\"password\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"plan\">Your Plan</label>\n            <select name=\"plan_id\" id=\"plan\">\n                {{#each app/plans}}\n                    <option value=\"{{id}}\" {{#if isSelected}}selected{{/if}}>{{name}}</option>\n                {{/each}}\n                <option disabled>============</option>\n                <option value=\"\">No Plan / Cancel My Plan</option>\n            </select>\n        </div>\n\n        <div class=\"field non-cc-field\">\n            <p><a href=\"#\" class=\"change-cc\">Change my credit card.</a></p>\n        </div>\n\n        <div class=\"field cc-field\">\n            <label for=\"number\">Credit Card</label>\n            <input type=\"text\" data-stripe=\"number\" id=\"number\" placeholder=\"Card Number\">\n            <input type=\"text\" data-stripe=\"exp-month\" placeholder=\"Expiry Month (MM)\">\n            <input type=\"text\" data-stripe=\"exp-year\" placeholder=\"Expiry Year (YY)\">\n            <input type=\"text\" data-stripe=\"cvc\" placeholder=\"CCV\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Save My Account</button>\n        </div>\n    </form>\n</div>\n";
 
 },{}],24:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form class=\"form\" disabled=\"disabled\">\n        <div class=\"field\">\n            <h2>We're sad to see you leave...</h2>\n            <p>If we haven't said it lately, thanks for being a part of our community. We're always looking for new feature ideas and feedback, so don't be afraid to <a href=\"/contact\">get in touch</a>.</p>\n        </div>\n\n        <div class=\"field\">\n            <label>To confirm, enter the domain for this installation.</label>\n            <input type=\"text\" name=\"domain\" placeholder=\"{{domain}}\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"button secondary\">Destroy This Installation</button>\n        </div>\n    </form>\n</div>\n";
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>Sign In to Your Account.</h2>\n        <p>If we haven't said it lately, thanks for being a part of our community. We're always looking for new feature ideas and feedback, so don't be afraid to <a href=\"/contact\">get in touch</a>.</p>\n        <p>Don't have an account? <a href=\"#!/sign-up\">Sign up here.</a></p>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"sign-in\">\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\" id=\"email\" autofocus>\n        </div>\n\n        <div class=\"field\">\n            <label for=\"password\">Password</label>\n            <input type=\"password\" name=\"password\" id=\"password\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Sign In</button>\n        </div>\n    </form>\n</div>\n";
 
 },{}],25:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-narrow\">\n    <ul>\n        <li>Show total bandwidth</li>\n        <li>Show total disk space</li>\n        <li>Show # of sites</li>\n    </ul>\n</div>\n\n<div class=\"wrapper wrapper-table\">\n    <table>\n        <tbody>\n            {{#each app/user/installations}}\n                <tr>\n                    <td><a href=\"#!/installations/{{id}}\">{{domain}}</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/installations/{{id}}/clone\">Clone</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/installations/{{id}}/history\">History</a></td>\n                </tr>\n            {{/each}}\n\n            <tr class=\"mobile-only\">\n                <td colspan=\"3\">\n                    <a href=\"#!/my-account\">\n                        My Account\n                    </a>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n";
+module.exports = "Signed Out.\n";
 
 },{}],26:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-narrow\">\n    <ul>\n        <li>Links to actions</li>\n        <li>Charts of bandwidth, disk usage</li>\n    </ul>\n</div>\n";
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>Try FastWordPress FREE for the next 7 days.</h2>\n        <p>We were tired of the slow, insecure, high down-time, shared hosting providers AND the pay-through-the-nose, managed WordPress platforms. So, we built the service <em>we</em> wanted.</p>\n        <p>Fast, reliable, secure, and affordable WordPress hosting with automated backups, instant roll-backs, site cloning, and SSL support. Our interface gets to the point, so you can get on with more important stuff.</p>\n        <p>We've finally shared our platform with the world and now <em>you</em>, too, can use it — just fill out the form below to <a href=\"#\" class=\"focus-first\">try it free for 7 days</a> (we won't charge your credit card until then).</p>\n        <p>Already have an account? <a href=\"#!/sign-in\">Sign in here.</a></p>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <form class=\"form\" action=\"sign-up\">\n        <div class=\"field\">\n            <label for=\"name\">Your Name</label>\n            <input type=\"text\" name=\"name\" id=\"name\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"email\">Email Address</label>\n            <input type=\"email\" name=\"email\" id=\"email\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"password\">Password</label>\n            <input type=\"password\" name=\"password\" id=\"password\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"number\">Credit Card</label>\n            <input type=\"text\" data-stripe=\"number\" id=\"number\" placeholder=\"Card Number\">\n            <input type=\"text\" data-stripe=\"exp-month\" placeholder=\"Expiry Month (MM)\">\n            <input type=\"text\" data-stripe=\"exp-year\" placeholder=\"Expiry Year (YY)\">\n            <input type=\"text\" data-stripe=\"cvc\" placeholder=\"CCV\">\n        </div>\n\n        <div class=\"field\">\n            <label for=\"plan\">Choose A Plan</label>\n            <select name=\"plan_id\" id=\"plan\">\n                {{#each app/plans}}\n                    <option value=\"{{id}}\" {{#if isSelected}}selected{{/if}}>{{name}}</option>\n                {{/each}}\n            </select>\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"secondary\">Sign Up Now</button>\n        </div>\n    </form>\n</div>\n";
 
 },{}],27:[function(require,module,exports){
-module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form class=\"form\">\n        <div class=\"field\">\n            <h2>Securing Your Site</h2>\n            <p>It's a great idea to add an SSL certificate to your website. It adds a higher level of security and safety for your visitors.</p>\n            <p>Already have a CSR? <a href=\"!\">Click here to enter your certificate info.</a></p>\n        </div>\n\n        <div class=\"field\">\n            <a href=\"!\"class=\"button secondary\">Generate A CSR</a>\n        </div>\n    </form>\n</div>\n";
+module.exports = "<div class=\"content\">\n    <div class=\"header\">\n        <div class=\"mobile-only\">\n            <h2>\n                {{#with current/site}}\n                    <a>\n                        {{domain}}\n                    </a>\n                {{else}}\n                    <a>\n                        {{#if current/title}}\n                            {{current/title}}\n                        {{else}}\n                            FastWordPress\n                        {{/if}}\n                    </a>\n                {{/with}}\n\n                <a href=\"#!/\" class=\"float-right\">\n                    <i class=\"glyphicons glyphicons-show-big-thumbnails\"></i>\n                </a>\n            </h2>\n        </div>\n\n        <div class=\"desktop-only\">\n            {{#if user}}\n                <h2>\n                    <a href=\"#!/\">\n                        <i class=\"glyphicons glyphicons-show-big-thumbnails\"></i>\n                    </a>\n                </h2>\n            {{/if}}\n\n            {{#with current/site}}\n                <h1>\n                    {{domain}}\n                </h1>\n\n                <ul class=\"site-menu menu\">\n                    <li><a href=\"#!/sites/{{id}}/edit\">Edit</a></li>\n                    <li><a href=\"#!/sites/{{id}}\">Status</a></li>\n                    <li><a href=\"#!/sites/{{id}}/backups\">Backups</a></li>\n                    <li><a href=\"#!/sites/{{id}}/clone\">Clone</a></li>\n                    <!-- <li><a href=\"#!/sites/{{id}}/ssl\">SSL</a></li> -->\n                    <li><a href=\"#!/sites/{{id}}/destroy\">Destroy</a></li>\n                </ul>\n            {{else}}\n                <h1>\n                    {{#if current/title}}\n                        {{current/title}}\n                    {{else}}\n                        FastWordPress\n                    {{/if}}\n                </h1>\n            {{/with}}\n\n            {{#if user}}\n                <ul class=\"accounts-menu menu\">\n                    <li>\n                        <a href=\"#!/sites/new\">\n                            <i class=\"glyphicons glyphicons-plus\"></i>\n                        </a>\n                    </li>\n                    <li>\n                        <a href=\"#!/\">Sites</a>\n                    </li>\n                    <li>\n                        <a href=\"#!/my-account\">My Account</a>\n                    </li>\n                    <!-- <li><a href=\"#!/sign-out\">Sign Out</a></li> -->\n                </ul>\n            {{/if}}\n        </div>\n    </div>\n\n    <div class=\"loading\">\n        <i class=\"glyphicons spin glyphicons-brightness-increase\"></i>\n    </div>\n\n    <div class=\"main\" data-main></div>\n</div>\n";
 
 },{}],28:[function(require,module,exports){
+module.exports = "<div class=\"form wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>We've got you covered.</h2>\n        <p>How many times have you lost valuable data? Never again! We've got your back with our automated and manual backups.</p>\n        <a href=\"!\" class=\"button secondary\">Backup Now</a>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-table\">\n    <table>\n        <tbody>\n            {{#each app/user/sites}}\n                <tr>\n                    <td><a href=\"#!/sites/{{id}}\">August 15, 2015</a></td>\n                    <td><a href=\"#!/sites/{{id}}\">10:31 AM</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/sites/{{id}}/clone\" class=\"button small\">Restore</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/sites/{{id}}/history\" class=\"button small\">Duplicate</a></td>\n                </tr>\n            {{/each}}\n\n            <tr class=\"mobile-only\">\n                <td colspan=\"3\">\n                    <a href=\"#!/my-account\">\n                        My Account\n                    </a>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n";
+
+},{}],29:[function(require,module,exports){
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form action=\"site-clone\" class=\"form\">\n        <div class=\"field\">\n            <h2>\n                Clone {{site/domain}}\n            </h2>\n            <p>Change the configuration for this site.</p>\n        </div>\n\n        <div class=\"field\">\n            <label>New Domain</label>\n            <input type=\"text\" name=\"domain\" autofocus=\"true\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"button secondary\">Clone This Site</button>\n        </div>\n    </form>\n</div>\n";
+
+},{}],30:[function(require,module,exports){
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form action=\"destroy\" class=\"form\" disabled=\"disabled\">\n        <div class=\"field\">\n            <h2>We're sad to see you leave...</h2>\n            <p>If we haven't said it lately, thanks for being a part of our community. We're always looking for new feature ideas and feedback, so don't be afraid to <a href=\"/contact\">get in touch</a>.</p>\n        </div>\n\n        <div class=\"field\">\n            <label>To confirm, enter the domain for this site.</label>\n            <input type=\"text\" name=\"domain\" placeholder=\"{{domain}}\" autocomplete=\"off\" autofocus=\"on\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"button secondary\">Destroy This Site</button>\n        </div>\n    </form>\n</div>\n";
+
+},{}],31:[function(require,module,exports){
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form action=\"site-form\" class=\"form\">\n        <div class=\"field\">\n            <h2>\n                {{#if site/id}}\n                    Edit this\n                {{else}}\n                    Create A\n                {{/if}}\n                Site\n            </h2>\n            <p>Change the configuration for this site.</p>\n        </div>\n\n        <div class=\"field\">\n            <label>Domain</label>\n            <input type=\"text\" name=\"domain\" value=\"{{site/domain}}\" autofocus=\"true\">\n        </div>\n\n        <div class=\"field\">\n            <button type=\"submit\" class=\"button secondary\">Save This Site</button>\n        </div>\n    </form>\n</div>\n";
+
+},{}],32:[function(require,module,exports){
+module.exports = "<div class=\"wrapper\">\n    <p class=\"float-left\">\n        You've used <b class=\"primary\">12 GB</b> out of <b class=\"primary\">20 GB</b> of disk space.<br>\n        Need more space? <a href=\"#!/my-account\">Upgrade Your Plan.</a>\n    </p>\n    <p class=\"float-right\">\n        <a href=\"#!/sites/new\" class=\"button secondary large\">Add A Site</a>\n    </p>\n</div>\n\n<div class=\"wrapper wrapper-table\">\n    <table>\n        <tbody>\n            {{#each app/user/sites}}\n                <tr>\n                    <td><a href=\"#!/sites/{{id}}\">{{domain}}</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/sites/{{id}}/clone\">Clone</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/sites/{{id}}/backups\">Backups</a></td>\n                    <td class=\"desktop-only\"><a href=\"#!/sites/{{id}}/destroy\">Destroy</a></td>\n                </tr>\n            {{/each}}\n\n            <tr class=\"mobile-only\">\n                <td colspan=\"3\">\n                    <a href=\"#!/my-account\">\n                        My Account\n                    </a>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n";
+
+},{}],33:[function(require,module,exports){
+module.exports = "<div class=\"form wrapper wrapper-medium\">\n    <div class=\"field\">\n        <h2>Stats.</h2>\n        <p>How many times have you lost valuable data? Never again! We've got your back with our automated and manual backups.</p>\n    </div>\n</div>\n\n<div class=\"wrapper wrapper-narrow\">\n    <ul>\n        <li>Links to actions</li>\n        <li>Charts of bandwidth, disk usage</li>\n    </ul>\n</div>\n";
+
+},{}],34:[function(require,module,exports){
+module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form class=\"form\">\n        <div class=\"field\">\n            <h2>Securing Your Site</h2>\n            <p>It's a great idea to add an SSL certificate to your website. It adds a higher level of security and safety for your visitors.</p>\n            <p>Already have a CSR? <a href=\"!\">Click here to enter your certificate info.</a></p>\n        </div>\n\n        <div class=\"field\">\n            <a href=\"!\"class=\"button secondary\">Generate A CSR</a>\n        </div>\n    </form>\n</div>\n";
+
+},{}],35:[function(require,module,exports){
 (function (process,global){
 /*!
  * async
@@ -1898,9 +2251,9 @@ module.exports = "<div class=\"wrapper wrapper-medium\">\n    <form class=\"form
 }());
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":179}],29:[function(require,module,exports){
+},{"_process":186}],36:[function(require,module,exports){
 
-},{}],30:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -3446,7 +3799,7 @@ function blitBuffer (src, dst, offset, length) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"base64-js":31,"ieee754":32,"is-array":33}],31:[function(require,module,exports){
+},{"base64-js":38,"ieee754":39,"is-array":40}],38:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -3572,7 +3925,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],32:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -3658,7 +4011,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],33:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 
 /**
  * isArray
@@ -3693,7 +4046,7 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}],34:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 'use strict';
 
 exports.randomBytes = exports.rng = exports.pseudoRandomBytes = exports.prng = require('randombytes')
@@ -3774,7 +4127,7 @@ var publicEncrypt = require('public-encrypt');
   }
 })
 
-},{"browserify-aes":38,"browserify-sign":54,"browserify-sign/algos":53,"create-ecdh":102,"create-hash":125,"create-hmac":137,"diffie-hellman":138,"pbkdf2":145,"public-encrypt":146,"randombytes":174}],35:[function(require,module,exports){
+},{"browserify-aes":45,"browserify-sign":61,"browserify-sign/algos":60,"create-ecdh":109,"create-hash":132,"create-hmac":144,"diffie-hellman":145,"pbkdf2":152,"public-encrypt":153,"randombytes":181}],42:[function(require,module,exports){
 (function (Buffer){
 var md5 = require('create-hash/md5')
 module.exports = EVP_BytesToKey
@@ -3840,7 +4193,7 @@ function EVP_BytesToKey (password, keyLen, ivLen) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"create-hash/md5":127}],36:[function(require,module,exports){
+},{"buffer":37,"create-hash/md5":134}],43:[function(require,module,exports){
 (function (Buffer){
 // based on the aes implimentation in triple sec
 // https://github.com/keybase/triplesec
@@ -4021,7 +4374,7 @@ AES.prototype._doCryptBlock = function (M, keySchedule, SUB_MIX, SBOX) {
 exports.AES = AES
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],37:[function(require,module,exports){
+},{"buffer":37}],44:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -4122,7 +4475,7 @@ function xorTest (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aes":36,"./cipherBase":39,"./ghash":42,"buffer":30,"buffer-xor":51,"inherits":176}],38:[function(require,module,exports){
+},{"./aes":43,"./cipherBase":46,"./ghash":49,"buffer":37,"buffer-xor":58,"inherits":183}],45:[function(require,module,exports){
 var ciphers = require('./encrypter')
 exports.createCipher = exports.Cipher = ciphers.createCipher
 exports.createCipheriv = exports.Cipheriv = ciphers.createCipheriv
@@ -4135,7 +4488,7 @@ function getCiphers () {
 }
 exports.listCiphers = exports.getCiphers = getCiphers
 
-},{"./decrypter":40,"./encrypter":41,"./modes":43}],39:[function(require,module,exports){
+},{"./decrypter":47,"./encrypter":48,"./modes":50}],46:[function(require,module,exports){
 (function (Buffer){
 var Transform = require('stream').Transform
 var inherits = require('inherits')
@@ -4205,7 +4558,7 @@ CipherBase.prototype._toString = function (value, enc, final) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"inherits":176,"stream":193}],40:[function(require,module,exports){
+},{"buffer":37,"inherits":183,"stream":200}],47:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -4345,7 +4698,7 @@ exports.createDecipher = createDecipher
 exports.createDecipheriv = createDecipheriv
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":35,"./aes":36,"./authCipher":37,"./cipherBase":39,"./modes":43,"./modes/cbc":44,"./modes/cfb":45,"./modes/cfb1":46,"./modes/cfb8":47,"./modes/ctr":48,"./modes/ecb":49,"./modes/ofb":50,"./streamCipher":52,"buffer":30,"inherits":176}],41:[function(require,module,exports){
+},{"./EVP_BytesToKey":42,"./aes":43,"./authCipher":44,"./cipherBase":46,"./modes":50,"./modes/cbc":51,"./modes/cfb":52,"./modes/cfb1":53,"./modes/cfb8":54,"./modes/ctr":55,"./modes/ecb":56,"./modes/ofb":57,"./streamCipher":59,"buffer":37,"inherits":183}],48:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -4470,7 +4823,7 @@ exports.createCipheriv = createCipheriv
 exports.createCipher = createCipher
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":35,"./aes":36,"./authCipher":37,"./cipherBase":39,"./modes":43,"./modes/cbc":44,"./modes/cfb":45,"./modes/cfb1":46,"./modes/cfb8":47,"./modes/ctr":48,"./modes/ecb":49,"./modes/ofb":50,"./streamCipher":52,"buffer":30,"inherits":176}],42:[function(require,module,exports){
+},{"./EVP_BytesToKey":42,"./aes":43,"./authCipher":44,"./cipherBase":46,"./modes":50,"./modes/cbc":51,"./modes/cfb":52,"./modes/cfb1":53,"./modes/cfb8":54,"./modes/ctr":55,"./modes/ecb":56,"./modes/ofb":57,"./streamCipher":59,"buffer":37,"inherits":183}],49:[function(require,module,exports){
 (function (Buffer){
 var zeros = new Buffer(16)
 zeros.fill(0)
@@ -4572,7 +4925,7 @@ function xor (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],43:[function(require,module,exports){
+},{"buffer":37}],50:[function(require,module,exports){
 exports['aes-128-ecb'] = {
   cipher: 'AES',
   key: 128,
@@ -4745,7 +5098,7 @@ exports['aes-256-gcm'] = {
   type: 'auth'
 }
 
-},{}],44:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 var xor = require('buffer-xor')
 
 exports.encrypt = function (self, block) {
@@ -4764,7 +5117,7 @@ exports.decrypt = function (self, block) {
   return xor(out, pad)
 }
 
-},{"buffer-xor":51}],45:[function(require,module,exports){
+},{"buffer-xor":58}],52:[function(require,module,exports){
 (function (Buffer){
 var xor = require('buffer-xor')
 
@@ -4799,7 +5152,7 @@ function encryptStart (self, data, decrypt) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"buffer-xor":51}],46:[function(require,module,exports){
+},{"buffer":37,"buffer-xor":58}],53:[function(require,module,exports){
 (function (Buffer){
 function encryptByte (self, byteParam, decrypt) {
   var pad
@@ -4837,7 +5190,7 @@ function shiftIn (buffer, value) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],47:[function(require,module,exports){
+},{"buffer":37}],54:[function(require,module,exports){
 (function (Buffer){
 function encryptByte (self, byteParam, decrypt) {
   var pad = self._cipher.encryptBlock(self._prev)
@@ -4856,7 +5209,7 @@ exports.encrypt = function (self, chunk, decrypt) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],48:[function(require,module,exports){
+},{"buffer":37}],55:[function(require,module,exports){
 (function (Buffer){
 var xor = require('buffer-xor')
 
@@ -4891,7 +5244,7 @@ exports.encrypt = function (self, chunk) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"buffer-xor":51}],49:[function(require,module,exports){
+},{"buffer":37,"buffer-xor":58}],56:[function(require,module,exports){
 exports.encrypt = function (self, block) {
   return self._cipher.encryptBlock(block)
 }
@@ -4899,7 +5252,7 @@ exports.decrypt = function (self, block) {
   return self._cipher.decryptBlock(block)
 }
 
-},{}],50:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 (function (Buffer){
 var xor = require('buffer-xor')
 
@@ -4919,7 +5272,7 @@ exports.encrypt = function (self, chunk) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"buffer-xor":51}],51:[function(require,module,exports){
+},{"buffer":37,"buffer-xor":58}],58:[function(require,module,exports){
 (function (Buffer){
 module.exports = function xor (a, b) {
   var length = Math.min(a.length, b.length)
@@ -4933,7 +5286,7 @@ module.exports = function xor (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],52:[function(require,module,exports){
+},{"buffer":37}],59:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -4962,7 +5315,7 @@ StreamCipher.prototype._final = function () {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aes":36,"./cipherBase":39,"buffer":30,"inherits":176}],53:[function(require,module,exports){
+},{"./aes":43,"./cipherBase":46,"buffer":37,"inherits":183}],60:[function(require,module,exports){
 (function (Buffer){
 'use strict'
 exports['RSA-SHA224'] = exports.sha224WithRSAEncryption = {
@@ -5037,7 +5390,7 @@ exports['RSA-MD5'] = exports.md5WithRSAEncryption = {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],54:[function(require,module,exports){
+},{"buffer":37}],61:[function(require,module,exports){
 (function (Buffer){
 var _algos = require('./algos')
 var createHash = require('create-hash')
@@ -5144,7 +5497,7 @@ module.exports = {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./algos":53,"./sign":99,"./verify":100,"buffer":30,"create-hash":125,"inherits":176,"stream":193}],55:[function(require,module,exports){
+},{"./algos":60,"./sign":106,"./verify":107,"buffer":37,"create-hash":132,"inherits":183,"stream":200}],62:[function(require,module,exports){
 'use strict'
 exports['1.3.132.0.10'] = 'secp256k1'
 
@@ -5154,7 +5507,7 @@ exports['1.2.840.10045.3.1.1'] = 'p192'
 
 exports['1.2.840.10045.3.1.7'] = 'p256'
 
-},{}],56:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -7474,7 +7827,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],57:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 (function (Buffer){
 var bn = require('bn.js');
 var randomBytes = require('randombytes');
@@ -7523,7 +7876,7 @@ function getr(priv) {
   return r;
 }
 }).call(this,require("buffer").Buffer)
-},{"bn.js":56,"buffer":30,"randombytes":174}],58:[function(require,module,exports){
+},{"bn.js":63,"buffer":37,"randombytes":181}],65:[function(require,module,exports){
 'use strict';
 
 var elliptic = exports;
@@ -7538,7 +7891,7 @@ elliptic.curves = require('./elliptic/curves');
 // Protocols
 elliptic.ec = require('./elliptic/ec');
 
-},{"../package.json":78,"./elliptic/curve":61,"./elliptic/curves":64,"./elliptic/ec":65,"./elliptic/hmac-drbg":68,"./elliptic/utils":70,"brorand":71}],59:[function(require,module,exports){
+},{"../package.json":85,"./elliptic/curve":68,"./elliptic/curves":71,"./elliptic/ec":72,"./elliptic/hmac-drbg":75,"./elliptic/utils":77,"brorand":78}],66:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -7855,7 +8208,7 @@ BasePoint.prototype.dblp = function dblp(k) {
   return r;
 };
 
-},{"../../elliptic":58,"bn.js":56}],60:[function(require,module,exports){
+},{"../../elliptic":65,"bn.js":63}],67:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -8228,7 +8581,7 @@ Point.prototype.getY = function getY() {
 Point.prototype.toP = Point.prototype.normalize;
 Point.prototype.mixedAdd = Point.prototype.add;
 
-},{"../../elliptic":58,"../curve":61,"bn.js":56,"inherits":176}],61:[function(require,module,exports){
+},{"../../elliptic":65,"../curve":68,"bn.js":63,"inherits":183}],68:[function(require,module,exports){
 'use strict';
 
 var curve = exports;
@@ -8238,7 +8591,7 @@ curve.short = require('./short');
 curve.mont = require('./mont');
 curve.edwards = require('./edwards');
 
-},{"./base":59,"./edwards":60,"./mont":62,"./short":63}],62:[function(require,module,exports){
+},{"./base":66,"./edwards":67,"./mont":69,"./short":70}],69:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -8401,7 +8754,7 @@ Point.prototype.getX = function getX() {
   return this.x.fromRed();
 };
 
-},{"../curve":61,"bn.js":56,"inherits":176}],63:[function(require,module,exports){
+},{"../curve":68,"bn.js":63,"inherits":183}],70:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -9310,7 +9663,7 @@ JPoint.prototype.isInfinity = function isInfinity() {
   return this.z.cmpn(0) === 0;
 };
 
-},{"../../elliptic":58,"../curve":61,"bn.js":56,"inherits":176}],64:[function(require,module,exports){
+},{"../../elliptic":65,"../curve":68,"bn.js":63,"inherits":183}],71:[function(require,module,exports){
 'use strict';
 
 var curves = exports;
@@ -9469,7 +9822,7 @@ defineCurve('secp256k1', {
   ]
 });
 
-},{"../elliptic":58,"./precomputed/secp256k1":69,"hash.js":72}],65:[function(require,module,exports){
+},{"../elliptic":65,"./precomputed/secp256k1":76,"hash.js":79}],72:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -9680,7 +10033,7 @@ EC.prototype.getKeyRecoveryParam = function(e, signature, Q, enc) {
   throw new Error('Unable to find valid recovery factor');
 };
 
-},{"../../elliptic":58,"./key":66,"./signature":67,"bn.js":56}],66:[function(require,module,exports){
+},{"../../elliptic":65,"./key":73,"./signature":74,"bn.js":63}],73:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -9832,7 +10185,7 @@ KeyPair.prototype.inspect = function inspect() {
          ' pub: ' + (this.pub && this.pub.inspect()) + ' >';
 };
 
-},{"../../elliptic":58,"bn.js":56}],67:[function(require,module,exports){
+},{"../../elliptic":65,"bn.js":63}],74:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -9904,7 +10257,7 @@ Signature.prototype.toDER = function toDER(enc) {
   return utils.encode(res, enc);
 };
 
-},{"../../elliptic":58,"bn.js":56}],68:[function(require,module,exports){
+},{"../../elliptic":65,"bn.js":63}],75:[function(require,module,exports){
 'use strict';
 
 var hash = require('hash.js');
@@ -10020,7 +10373,7 @@ HmacDRBG.prototype.generate = function generate(len, enc, add, addEnc) {
   return utils.encode(res, enc);
 };
 
-},{"../elliptic":58,"hash.js":72}],69:[function(require,module,exports){
+},{"../elliptic":65,"hash.js":79}],76:[function(require,module,exports){
 module.exports = {
   doubles: {
     step: 4,
@@ -10802,7 +11155,7 @@ module.exports = {
   }
 };
 
-},{}],70:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 'use strict';
 
 var utils = exports;
@@ -10954,7 +11307,7 @@ function getJSF(k1, k2) {
 }
 utils.getJSF = getJSF;
 
-},{}],71:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 var r;
 
 module.exports = function rand(len) {
@@ -11013,7 +11366,7 @@ if (typeof window === 'object') {
   }
 }
 
-},{}],72:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 var hash = exports;
 
 hash.utils = require('./hash/utils');
@@ -11030,7 +11383,7 @@ hash.sha384 = hash.sha.sha384;
 hash.sha512 = hash.sha.sha512;
 hash.ripemd160 = hash.ripemd.ripemd160;
 
-},{"./hash/common":73,"./hash/hmac":74,"./hash/ripemd":75,"./hash/sha":76,"./hash/utils":77}],73:[function(require,module,exports){
+},{"./hash/common":80,"./hash/hmac":81,"./hash/ripemd":82,"./hash/sha":83,"./hash/utils":84}],80:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 var assert = utils.assert;
@@ -11123,7 +11476,7 @@ BlockHash.prototype._pad = function pad() {
   return res;
 };
 
-},{"../hash":72}],74:[function(require,module,exports){
+},{"../hash":79}],81:[function(require,module,exports){
 var hmac = exports;
 
 var hash = require('../hash');
@@ -11173,7 +11526,7 @@ Hmac.prototype.digest = function digest(enc) {
   return this.outer.digest(enc);
 };
 
-},{"../hash":72}],75:[function(require,module,exports){
+},{"../hash":79}],82:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 
@@ -11319,7 +11672,7 @@ var sh = [
   8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6, 5, 15, 13, 11, 11
 ];
 
-},{"../hash":72}],76:[function(require,module,exports){
+},{"../hash":79}],83:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 var assert = utils.assert;
@@ -11885,7 +12238,7 @@ function g1_512_lo(xh, xl) {
   return r;
 }
 
-},{"../hash":72}],77:[function(require,module,exports){
+},{"../hash":79}],84:[function(require,module,exports){
 var utils = exports;
 var inherits = require('inherits');
 
@@ -12144,7 +12497,7 @@ function shr64_lo(ah, al, num) {
 };
 exports.shr64_lo = shr64_lo;
 
-},{"inherits":176}],78:[function(require,module,exports){
+},{"inherits":183}],85:[function(require,module,exports){
 module.exports={
   "name": "elliptic",
   "version": "3.1.0",
@@ -12210,7 +12563,7 @@ module.exports={
   "readme": "ERROR: No README data found!"
 }
 
-},{}],79:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('create-hash');
 module.exports = function evp(password, salt, keyLen) {
@@ -12252,7 +12605,7 @@ module.exports = function evp(password, salt, keyLen) {
   return key;
 };
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"create-hash":125}],80:[function(require,module,exports){
+},{"buffer":37,"create-hash":132}],87:[function(require,module,exports){
 module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.2": "aes-128-cbc",
 "2.16.840.1.101.3.4.1.3": "aes-128-ofb",
@@ -12266,7 +12619,7 @@ module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.43": "aes-256-ofb",
 "2.16.840.1.101.3.4.1.44": "aes-256-cfb"
 }
-},{}],81:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 // from https://github.com/indutny/self-signed/blob/gh-pages/lib/asn1.js
 // Fedor, you are amazing.
 
@@ -12385,7 +12738,7 @@ exports.signature = asn1.define('signature', function() {
   );
 });
 
-},{"asn1.js":84}],82:[function(require,module,exports){
+},{"asn1.js":91}],89:[function(require,module,exports){
 (function (Buffer){
 // adapted from https://github.com/apatil/pemstrip
 var findProc = /Proc-Type: 4,ENCRYPTED\r?\nDEK-Info: AES-((?:128)|(?:192)|(?:256))-CBC,([0-9A-H]+)\r?\n\r?\n([0-9A-z\n\r\+\/\=]+)\r?\n/m;
@@ -12429,7 +12782,7 @@ function wrap (str) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":79,"browserify-aes":38,"buffer":30}],83:[function(require,module,exports){
+},{"./EVP_BytesToKey":86,"browserify-aes":45,"buffer":37}],90:[function(require,module,exports){
 (function (Buffer){
 var asn1 = require('./asn1');
 var aesid = require('./aesid.json');
@@ -12534,7 +12887,7 @@ function decrypt(data, password) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aesid.json":80,"./asn1":81,"./fixProc":82,"browserify-aes":38,"buffer":30,"pbkdf2":145}],84:[function(require,module,exports){
+},{"./aesid.json":87,"./asn1":88,"./fixProc":89,"browserify-aes":45,"buffer":37,"pbkdf2":152}],91:[function(require,module,exports){
 var asn1 = exports;
 
 asn1.bignum = require('bn.js');
@@ -12545,7 +12898,7 @@ asn1.constants = require('./asn1/constants');
 asn1.decoders = require('./asn1/decoders');
 asn1.encoders = require('./asn1/encoders');
 
-},{"./asn1/api":85,"./asn1/base":87,"./asn1/constants":91,"./asn1/decoders":93,"./asn1/encoders":96,"bn.js":56}],85:[function(require,module,exports){
+},{"./asn1/api":92,"./asn1/base":94,"./asn1/constants":98,"./asn1/decoders":100,"./asn1/encoders":103,"bn.js":63}],92:[function(require,module,exports){
 var asn1 = require('../asn1');
 var inherits = require('inherits');
 
@@ -12606,7 +12959,7 @@ Entity.prototype.encode = function encode(data, enc, /* internal */ reporter) {
   return this._getEncoder(enc).encode(data, reporter);
 };
 
-},{"../asn1":84,"inherits":176,"vm":195}],86:[function(require,module,exports){
+},{"../asn1":91,"inherits":183,"vm":202}],93:[function(require,module,exports){
 var inherits = require('inherits');
 var Reporter = require('../base').Reporter;
 var Buffer = require('buffer').Buffer;
@@ -12724,7 +13077,7 @@ EncoderBuffer.prototype.join = function join(out, offset) {
   return out;
 };
 
-},{"../base":87,"buffer":30,"inherits":176}],87:[function(require,module,exports){
+},{"../base":94,"buffer":37,"inherits":183}],94:[function(require,module,exports){
 var base = exports;
 
 base.Reporter = require('./reporter').Reporter;
@@ -12732,7 +13085,7 @@ base.DecoderBuffer = require('./buffer').DecoderBuffer;
 base.EncoderBuffer = require('./buffer').EncoderBuffer;
 base.Node = require('./node');
 
-},{"./buffer":86,"./node":88,"./reporter":89}],88:[function(require,module,exports){
+},{"./buffer":93,"./node":95,"./reporter":96}],95:[function(require,module,exports){
 var Reporter = require('../base').Reporter;
 var EncoderBuffer = require('../base').EncoderBuffer;
 var assert = require('minimalistic-assert');
@@ -13332,7 +13685,7 @@ Node.prototype._encodePrimitive = function encodePrimitive(tag, data) {
     throw new Error('Unsupported tag: ' + tag);
 };
 
-},{"../base":87,"minimalistic-assert":98}],89:[function(require,module,exports){
+},{"../base":94,"minimalistic-assert":105}],96:[function(require,module,exports){
 var inherits = require('inherits');
 
 function Reporter(options) {
@@ -13436,7 +13789,7 @@ ReporterError.prototype.rethrow = function rethrow(msg) {
   return this;
 };
 
-},{"inherits":176}],90:[function(require,module,exports){
+},{"inherits":183}],97:[function(require,module,exports){
 var constants = require('../constants');
 
 exports.tagClass = {
@@ -13480,7 +13833,7 @@ exports.tag = {
 };
 exports.tagByName = constants._reverse(exports.tag);
 
-},{"../constants":91}],91:[function(require,module,exports){
+},{"../constants":98}],98:[function(require,module,exports){
 var constants = exports;
 
 // Helper
@@ -13501,7 +13854,7 @@ constants._reverse = function reverse(map) {
 
 constants.der = require('./der');
 
-},{"./der":90}],92:[function(require,module,exports){
+},{"./der":97}],99:[function(require,module,exports){
 var inherits = require('inherits');
 
 var asn1 = require('../../asn1');
@@ -13794,13 +14147,13 @@ function derDecodeLen(buf, primitive, fail) {
   return len;
 }
 
-},{"../../asn1":84,"inherits":176}],93:[function(require,module,exports){
+},{"../../asn1":91,"inherits":183}],100:[function(require,module,exports){
 var decoders = exports;
 
 decoders.der = require('./der');
 decoders.pem = require('./pem');
 
-},{"./der":92,"./pem":94}],94:[function(require,module,exports){
+},{"./der":99,"./pem":101}],101:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -13852,7 +14205,7 @@ PEMDecoder.prototype.decode = function decode(data, options) {
   return DERDecoder.prototype.decode.call(this, input, options);
 };
 
-},{"../../asn1":84,"./der":92,"buffer":30,"inherits":176}],95:[function(require,module,exports){
+},{"../../asn1":91,"./der":99,"buffer":37,"inherits":183}],102:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -14126,13 +14479,13 @@ function encodeTag(tag, primitive, cls, reporter) {
   return res;
 }
 
-},{"../../asn1":84,"buffer":30,"inherits":176}],96:[function(require,module,exports){
+},{"../../asn1":91,"buffer":37,"inherits":183}],103:[function(require,module,exports){
 var encoders = exports;
 
 encoders.der = require('./der');
 encoders.pem = require('./pem');
 
-},{"./der":95,"./pem":97}],97:[function(require,module,exports){
+},{"./der":102,"./pem":104}],104:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -14157,7 +14510,7 @@ PEMEncoder.prototype.encode = function encode(data, options) {
   return out.join('\n');
 };
 
-},{"../../asn1":84,"./der":95,"buffer":30,"inherits":176}],98:[function(require,module,exports){
+},{"../../asn1":91,"./der":102,"buffer":37,"inherits":183}],105:[function(require,module,exports){
 module.exports = assert;
 
 function assert(val, msg) {
@@ -14170,7 +14523,7 @@ assert.equal = function assertEqual(l, r, msg) {
     throw new Error(msg || ('Assertion failed: ' + l + ' != ' + r));
 };
 
-},{}],99:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 (function (Buffer){
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
 var createHmac = require('create-hmac')
@@ -14359,7 +14712,7 @@ module.exports.getKey = getKey
 module.exports.makeKey = makeKey
 
 }).call(this,require("buffer").Buffer)
-},{"./curves":55,"bn.js":56,"browserify-rsa":57,"buffer":30,"create-hmac":137,"elliptic":58,"parse-asn1":83}],100:[function(require,module,exports){
+},{"./curves":62,"bn.js":63,"browserify-rsa":64,"buffer":37,"create-hmac":144,"elliptic":65,"parse-asn1":90}],107:[function(require,module,exports){
 (function (Buffer){
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
 var curves = require('./curves')
@@ -14466,7 +14819,7 @@ function checkValue (b, q) {
 module.exports = verify
 
 }).call(this,require("buffer").Buffer)
-},{"./curves":55,"bn.js":56,"buffer":30,"elliptic":58,"parse-asn1":83}],101:[function(require,module,exports){
+},{"./curves":62,"bn.js":63,"buffer":37,"elliptic":65,"parse-asn1":90}],108:[function(require,module,exports){
 (function (Buffer){
 var elliptic = require('elliptic');
 var BN = require('bn.js');
@@ -14582,55 +14935,55 @@ function formatReturnValue(bn, enc, len) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"bn.js":103,"buffer":30,"elliptic":104}],102:[function(require,module,exports){
+},{"bn.js":110,"buffer":37,"elliptic":111}],109:[function(require,module,exports){
 var createECDH = require('crypto').createECDH;
 
 module.exports = createECDH || require('./browser');
-},{"./browser":101,"crypto":34}],103:[function(require,module,exports){
-arguments[4][56][0].apply(exports,arguments)
-},{"dup":56}],104:[function(require,module,exports){
-arguments[4][58][0].apply(exports,arguments)
-},{"../package.json":124,"./elliptic/curve":107,"./elliptic/curves":110,"./elliptic/ec":111,"./elliptic/hmac-drbg":114,"./elliptic/utils":116,"brorand":117,"dup":58}],105:[function(require,module,exports){
-arguments[4][59][0].apply(exports,arguments)
-},{"../../elliptic":104,"bn.js":103,"dup":59}],106:[function(require,module,exports){
-arguments[4][60][0].apply(exports,arguments)
-},{"../../elliptic":104,"../curve":107,"bn.js":103,"dup":60,"inherits":176}],107:[function(require,module,exports){
-arguments[4][61][0].apply(exports,arguments)
-},{"./base":105,"./edwards":106,"./mont":108,"./short":109,"dup":61}],108:[function(require,module,exports){
-arguments[4][62][0].apply(exports,arguments)
-},{"../curve":107,"bn.js":103,"dup":62,"inherits":176}],109:[function(require,module,exports){
+},{"./browser":108,"crypto":41}],110:[function(require,module,exports){
 arguments[4][63][0].apply(exports,arguments)
-},{"../../elliptic":104,"../curve":107,"bn.js":103,"dup":63,"inherits":176}],110:[function(require,module,exports){
-arguments[4][64][0].apply(exports,arguments)
-},{"../elliptic":104,"./precomputed/secp256k1":115,"dup":64,"hash.js":118}],111:[function(require,module,exports){
+},{"dup":63}],111:[function(require,module,exports){
 arguments[4][65][0].apply(exports,arguments)
-},{"../../elliptic":104,"./key":112,"./signature":113,"bn.js":103,"dup":65}],112:[function(require,module,exports){
+},{"../package.json":131,"./elliptic/curve":114,"./elliptic/curves":117,"./elliptic/ec":118,"./elliptic/hmac-drbg":121,"./elliptic/utils":123,"brorand":124,"dup":65}],112:[function(require,module,exports){
 arguments[4][66][0].apply(exports,arguments)
-},{"../../elliptic":104,"bn.js":103,"dup":66}],113:[function(require,module,exports){
+},{"../../elliptic":111,"bn.js":110,"dup":66}],113:[function(require,module,exports){
 arguments[4][67][0].apply(exports,arguments)
-},{"../../elliptic":104,"bn.js":103,"dup":67}],114:[function(require,module,exports){
+},{"../../elliptic":111,"../curve":114,"bn.js":110,"dup":67,"inherits":183}],114:[function(require,module,exports){
 arguments[4][68][0].apply(exports,arguments)
-},{"../elliptic":104,"dup":68,"hash.js":118}],115:[function(require,module,exports){
+},{"./base":112,"./edwards":113,"./mont":115,"./short":116,"dup":68}],115:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"dup":69}],116:[function(require,module,exports){
+},{"../curve":114,"bn.js":110,"dup":69,"inherits":183}],116:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"dup":70}],117:[function(require,module,exports){
+},{"../../elliptic":111,"../curve":114,"bn.js":110,"dup":70,"inherits":183}],117:[function(require,module,exports){
 arguments[4][71][0].apply(exports,arguments)
-},{"dup":71}],118:[function(require,module,exports){
+},{"../elliptic":111,"./precomputed/secp256k1":122,"dup":71,"hash.js":125}],118:[function(require,module,exports){
 arguments[4][72][0].apply(exports,arguments)
-},{"./hash/common":119,"./hash/hmac":120,"./hash/ripemd":121,"./hash/sha":122,"./hash/utils":123,"dup":72}],119:[function(require,module,exports){
+},{"../../elliptic":111,"./key":119,"./signature":120,"bn.js":110,"dup":72}],119:[function(require,module,exports){
 arguments[4][73][0].apply(exports,arguments)
-},{"../hash":118,"dup":73}],120:[function(require,module,exports){
+},{"../../elliptic":111,"bn.js":110,"dup":73}],120:[function(require,module,exports){
 arguments[4][74][0].apply(exports,arguments)
-},{"../hash":118,"dup":74}],121:[function(require,module,exports){
+},{"../../elliptic":111,"bn.js":110,"dup":74}],121:[function(require,module,exports){
 arguments[4][75][0].apply(exports,arguments)
-},{"../hash":118,"dup":75}],122:[function(require,module,exports){
+},{"../elliptic":111,"dup":75,"hash.js":125}],122:[function(require,module,exports){
 arguments[4][76][0].apply(exports,arguments)
-},{"../hash":118,"dup":76}],123:[function(require,module,exports){
+},{"dup":76}],123:[function(require,module,exports){
 arguments[4][77][0].apply(exports,arguments)
-},{"dup":77,"inherits":176}],124:[function(require,module,exports){
+},{"dup":77}],124:[function(require,module,exports){
 arguments[4][78][0].apply(exports,arguments)
 },{"dup":78}],125:[function(require,module,exports){
+arguments[4][79][0].apply(exports,arguments)
+},{"./hash/common":126,"./hash/hmac":127,"./hash/ripemd":128,"./hash/sha":129,"./hash/utils":130,"dup":79}],126:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"../hash":125,"dup":80}],127:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"../hash":125,"dup":81}],128:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"../hash":125,"dup":82}],129:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"../hash":125,"dup":83}],130:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84,"inherits":183}],131:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"dup":85}],132:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var inherits = require('inherits')
@@ -14723,7 +15076,7 @@ module.exports = function createHash (alg) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./md5":127,"buffer":30,"inherits":176,"ripemd160":128,"sha.js":130,"stream":193}],126:[function(require,module,exports){
+},{"./md5":134,"buffer":37,"inherits":183,"ripemd160":135,"sha.js":137,"stream":200}],133:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var intSize = 4;
@@ -14760,7 +15113,7 @@ function hash(buf, fn, hashSize, bigEndian) {
 }
 exports.hash = hash;
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],127:[function(require,module,exports){
+},{"buffer":37}],134:[function(require,module,exports){
 'use strict';
 /*
  * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
@@ -14917,7 +15270,7 @@ function bit_rol(num, cnt)
 module.exports = function md5(buf) {
   return helpers.hash(buf, core_md5, 16);
 };
-},{"./helpers":126}],128:[function(require,module,exports){
+},{"./helpers":133}],135:[function(require,module,exports){
 (function (Buffer){
 /*
 CryptoJS v3.1.2
@@ -15131,7 +15484,7 @@ function ripemd160 (message) {
 module.exports = ripemd160
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],129:[function(require,module,exports){
+},{"buffer":37}],136:[function(require,module,exports){
 (function (Buffer){
 // prototype class for hash functions
 function Hash (blockSize, finalSize) {
@@ -15204,7 +15557,7 @@ Hash.prototype._update = function () {
 module.exports = Hash
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30}],130:[function(require,module,exports){
+},{"buffer":37}],137:[function(require,module,exports){
 var exports = module.exports = function SHA (algorithm) {
   algorithm = algorithm.toLowerCase()
 
@@ -15221,7 +15574,7 @@ exports.sha256 = require('./sha256')
 exports.sha384 = require('./sha384')
 exports.sha512 = require('./sha512')
 
-},{"./sha":131,"./sha1":132,"./sha224":133,"./sha256":134,"./sha384":135,"./sha512":136}],131:[function(require,module,exports){
+},{"./sha":138,"./sha1":139,"./sha224":140,"./sha256":141,"./sha384":142,"./sha512":143}],138:[function(require,module,exports){
 (function (Buffer){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-0, as defined
@@ -15325,7 +15678,7 @@ module.exports = Sha
 
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"buffer":30,"inherits":176}],132:[function(require,module,exports){
+},{"./hash":136,"buffer":37,"inherits":183}],139:[function(require,module,exports){
 (function (Buffer){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
@@ -15425,7 +15778,7 @@ Sha1.prototype._hash = function () {
 module.exports = Sha1
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"buffer":30,"inherits":176}],133:[function(require,module,exports){
+},{"./hash":136,"buffer":37,"inherits":183}],140:[function(require,module,exports){
 (function (Buffer){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -15481,7 +15834,7 @@ Sha224.prototype._hash = function () {
 module.exports = Sha224
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"./sha256":134,"buffer":30,"inherits":176}],134:[function(require,module,exports){
+},{"./hash":136,"./sha256":141,"buffer":37,"inherits":183}],141:[function(require,module,exports){
 (function (Buffer){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -15626,7 +15979,7 @@ Sha256.prototype._hash = function () {
 module.exports = Sha256
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"buffer":30,"inherits":176}],135:[function(require,module,exports){
+},{"./hash":136,"buffer":37,"inherits":183}],142:[function(require,module,exports){
 (function (Buffer){
 var inherits = require('inherits')
 var SHA512 = require('./sha512')
@@ -15686,7 +16039,7 @@ Sha384.prototype._hash = function () {
 module.exports = Sha384
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"./sha512":136,"buffer":30,"inherits":176}],136:[function(require,module,exports){
+},{"./hash":136,"./sha512":143,"buffer":37,"inherits":183}],143:[function(require,module,exports){
 (function (Buffer){
 var inherits = require('inherits')
 var Hash = require('./hash')
@@ -15956,7 +16309,7 @@ Sha512.prototype._hash = function () {
 module.exports = Sha512
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":129,"buffer":30,"inherits":176}],137:[function(require,module,exports){
+},{"./hash":136,"buffer":37,"inherits":183}],144:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var createHash = require('create-hash/browser');
@@ -16028,7 +16381,7 @@ module.exports = function createHmac(alg, key) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"create-hash/browser":125,"inherits":176,"stream":193}],138:[function(require,module,exports){
+},{"buffer":37,"create-hash/browser":132,"inherits":183,"stream":200}],145:[function(require,module,exports){
 (function (Buffer){
 var generatePrime = require('./lib/generatePrime');
 var primes = require('./lib/primes');
@@ -16072,7 +16425,7 @@ exports.DiffieHellmanGroup = exports.createDiffieHellmanGroup = exports.getDiffi
 exports.createDiffieHellman = exports.DiffieHellman = createDiffieHellman;
 
 }).call(this,require("buffer").Buffer)
-},{"./lib/dh":139,"./lib/generatePrime":140,"./lib/primes":141,"buffer":30}],139:[function(require,module,exports){
+},{"./lib/dh":146,"./lib/generatePrime":147,"./lib/primes":148,"buffer":37}],146:[function(require,module,exports){
 (function (Buffer){
 var BN = require('bn.js');
 var MillerRabin = require('miller-rabin');
@@ -16242,7 +16595,7 @@ function formatReturnValue(bn, enc) {
   }
 }
 }).call(this,require("buffer").Buffer)
-},{"./generatePrime":140,"bn.js":142,"buffer":30,"miller-rabin":143,"randombytes":174}],140:[function(require,module,exports){
+},{"./generatePrime":147,"bn.js":149,"buffer":37,"miller-rabin":150,"randombytes":181}],147:[function(require,module,exports){
 var randomBytes = require('randombytes');
 module.exports = findPrime;
 findPrime.simpleSieve = simpleSieve;
@@ -16375,7 +16728,7 @@ function findPrime(bits, gen) {
   }
 
 }
-},{"bn.js":142,"miller-rabin":143,"randombytes":174}],141:[function(require,module,exports){
+},{"bn.js":149,"miller-rabin":150,"randombytes":181}],148:[function(require,module,exports){
 module.exports={
     "modp1": {
         "gen": "02",
@@ -16410,9 +16763,9 @@ module.exports={
         "prime": "ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca18217c32905e462e36ce3be39e772c180e86039b2783a2ec07a28fb5c55df06f4c52c9de2bcbf6955817183995497cea956ae515d2261898fa051015728e5a8aaac42dad33170d04507a33a85521abdf1cba64ecfb850458dbef0a8aea71575d060c7db3970f85a6e1e4c7abf5ae8cdb0933d71e8c94e04a25619dcee3d2261ad2ee6bf12ffa06d98a0864d87602733ec86a64521f2b18177b200cbbe117577a615d6c770988c0bad946e208e24fa074e5ab3143db5bfce0fd108e4b82d120a92108011a723c12a787e6d788719a10bdba5b2699c327186af4e23c1a946834b6150bda2583e9ca2ad44ce8dbbbc2db04de8ef92e8efc141fbecaa6287c59474e6bc05d99b2964fa090c3a2233ba186515be7ed1f612970cee2d7afb81bdd762170481cd0069127d5b05aa993b4ea988d8fddc186ffb7dc90a6c08f4df435c93402849236c3fab4d27c7026c1d4dcb2602646dec9751e763dba37bdf8ff9406ad9e530ee5db382f413001aeb06a53ed9027d831179727b0865a8918da3edbebcf9b14ed44ce6cbaced4bb1bdb7f1447e6cc254b332051512bd7af426fb8f401378cd2bf5983ca01c64b92ecf032ea15d1721d03f482d7ce6e74fef6d55e702f46980c82b5a84031900b1c9e59e7c97fbec7e8f323a97a7e36cc88be0f1d45b7ff585ac54bd407b22b4154aacc8f6d7ebf48e1d814cc5ed20f8037e0a79715eef29be32806a1d58bb7c5da76f550aa3d8a1fbff0eb19ccb1a313d55cda56c9ec2ef29632387fe8d76e3c0468043e8f663f4860ee12bf2d5b0b7474d6e694f91e6dbe115974a3926f12fee5e438777cb6a932df8cd8bec4d073b931ba3bc832b68d9dd300741fa7bf8afc47ed2576f6936ba424663aab639c5ae4f5683423b4742bf1c978238f16cbe39d652de3fdb8befc848ad922222e04a4037c0713eb57a81a23f0c73473fc646cea306b4bcbc8862f8385ddfa9d4b7fa2c087e879683303ed5bdd3a062b3cf5b3a278a66d2a13f83f44f82ddf310ee074ab6a364597e899a0255dc164f31cc50846851df9ab48195ded7ea1b1d510bd7ee74d73faf36bc31ecfa268359046f4eb879f924009438b481c6cd7889a002ed5ee382bc9190da6fc026e479558e4475677e9aa9e3050e2765694dfc81f56e880b96e7160c980dd98edd3dfffffffffffffffff"
     }
 }
-},{}],142:[function(require,module,exports){
-arguments[4][56][0].apply(exports,arguments)
-},{"dup":56}],143:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"dup":63}],150:[function(require,module,exports){
 var bn = require('bn.js');
 var brorand = require('brorand');
 
@@ -16527,9 +16880,9 @@ MillerRabin.prototype.getDivisor = function getDivisor(n, k) {
   return false;
 };
 
-},{"bn.js":142,"brorand":144}],144:[function(require,module,exports){
-arguments[4][71][0].apply(exports,arguments)
-},{"dup":71}],145:[function(require,module,exports){
+},{"bn.js":149,"brorand":151}],151:[function(require,module,exports){
+arguments[4][78][0].apply(exports,arguments)
+},{"dup":78}],152:[function(require,module,exports){
 (function (Buffer){
 var createHmac = require('create-hmac')
 var MAX_ALLOC = Math.pow(2, 30) - 1 // default in iojs
@@ -16613,7 +16966,7 @@ function pbkdf2Sync (password, salt, iterations, keylen, digest) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"create-hmac":137}],146:[function(require,module,exports){
+},{"buffer":37,"create-hmac":144}],153:[function(require,module,exports){
 exports.publicEncrypt = require('./publicEncrypt');
 exports.privateDecrypt = require('./privateDecrypt');
 
@@ -16624,7 +16977,7 @@ exports.privateEncrypt = function privateEncrypt(key, buf) {
 exports.publicDecrypt = function publicDecrypt(key, buf) {
   return exports.privateDecrypt(key, buf, true);
 };
-},{"./privateDecrypt":170,"./publicEncrypt":171}],147:[function(require,module,exports){
+},{"./privateDecrypt":177,"./publicEncrypt":178}],154:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('create-hash');
 module.exports = function (seed, len) {
@@ -16643,51 +16996,51 @@ function i2ops(c) {
   return out;
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":30,"create-hash":125}],148:[function(require,module,exports){
-arguments[4][56][0].apply(exports,arguments)
-},{"dup":56}],149:[function(require,module,exports){
-arguments[4][57][0].apply(exports,arguments)
-},{"bn.js":148,"buffer":30,"dup":57,"randombytes":174}],150:[function(require,module,exports){
-arguments[4][79][0].apply(exports,arguments)
-},{"buffer":30,"create-hash":125,"dup":79}],151:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"dup":80}],152:[function(require,module,exports){
-arguments[4][81][0].apply(exports,arguments)
-},{"asn1.js":155,"dup":81}],153:[function(require,module,exports){
-arguments[4][82][0].apply(exports,arguments)
-},{"./EVP_BytesToKey":150,"browserify-aes":38,"buffer":30,"dup":82}],154:[function(require,module,exports){
-arguments[4][83][0].apply(exports,arguments)
-},{"./aesid.json":151,"./asn1":152,"./fixProc":153,"browserify-aes":38,"buffer":30,"dup":83,"pbkdf2":145}],155:[function(require,module,exports){
-arguments[4][84][0].apply(exports,arguments)
-},{"./asn1/api":156,"./asn1/base":158,"./asn1/constants":162,"./asn1/decoders":164,"./asn1/encoders":167,"bn.js":148,"dup":84}],156:[function(require,module,exports){
-arguments[4][85][0].apply(exports,arguments)
-},{"../asn1":155,"dup":85,"inherits":176,"vm":195}],157:[function(require,module,exports){
+},{"buffer":37,"create-hash":132}],155:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"dup":63}],156:[function(require,module,exports){
+arguments[4][64][0].apply(exports,arguments)
+},{"bn.js":155,"buffer":37,"dup":64,"randombytes":181}],157:[function(require,module,exports){
 arguments[4][86][0].apply(exports,arguments)
-},{"../base":158,"buffer":30,"dup":86,"inherits":176}],158:[function(require,module,exports){
+},{"buffer":37,"create-hash":132,"dup":86}],158:[function(require,module,exports){
 arguments[4][87][0].apply(exports,arguments)
-},{"./buffer":157,"./node":159,"./reporter":160,"dup":87}],159:[function(require,module,exports){
+},{"dup":87}],159:[function(require,module,exports){
 arguments[4][88][0].apply(exports,arguments)
-},{"../base":158,"dup":88,"minimalistic-assert":169}],160:[function(require,module,exports){
+},{"asn1.js":162,"dup":88}],160:[function(require,module,exports){
 arguments[4][89][0].apply(exports,arguments)
-},{"dup":89,"inherits":176}],161:[function(require,module,exports){
+},{"./EVP_BytesToKey":157,"browserify-aes":45,"buffer":37,"dup":89}],161:[function(require,module,exports){
 arguments[4][90][0].apply(exports,arguments)
-},{"../constants":162,"dup":90}],162:[function(require,module,exports){
+},{"./aesid.json":158,"./asn1":159,"./fixProc":160,"browserify-aes":45,"buffer":37,"dup":90,"pbkdf2":152}],162:[function(require,module,exports){
 arguments[4][91][0].apply(exports,arguments)
-},{"./der":161,"dup":91}],163:[function(require,module,exports){
+},{"./asn1/api":163,"./asn1/base":165,"./asn1/constants":169,"./asn1/decoders":171,"./asn1/encoders":174,"bn.js":155,"dup":91}],163:[function(require,module,exports){
 arguments[4][92][0].apply(exports,arguments)
-},{"../../asn1":155,"dup":92,"inherits":176}],164:[function(require,module,exports){
+},{"../asn1":162,"dup":92,"inherits":183,"vm":202}],164:[function(require,module,exports){
 arguments[4][93][0].apply(exports,arguments)
-},{"./der":163,"./pem":165,"dup":93}],165:[function(require,module,exports){
+},{"../base":165,"buffer":37,"dup":93,"inherits":183}],165:[function(require,module,exports){
 arguments[4][94][0].apply(exports,arguments)
-},{"../../asn1":155,"./der":163,"buffer":30,"dup":94,"inherits":176}],166:[function(require,module,exports){
+},{"./buffer":164,"./node":166,"./reporter":167,"dup":94}],166:[function(require,module,exports){
 arguments[4][95][0].apply(exports,arguments)
-},{"../../asn1":155,"buffer":30,"dup":95,"inherits":176}],167:[function(require,module,exports){
+},{"../base":165,"dup":95,"minimalistic-assert":176}],167:[function(require,module,exports){
 arguments[4][96][0].apply(exports,arguments)
-},{"./der":166,"./pem":168,"dup":96}],168:[function(require,module,exports){
+},{"dup":96,"inherits":183}],168:[function(require,module,exports){
 arguments[4][97][0].apply(exports,arguments)
-},{"../../asn1":155,"./der":166,"buffer":30,"dup":97,"inherits":176}],169:[function(require,module,exports){
+},{"../constants":169,"dup":97}],169:[function(require,module,exports){
 arguments[4][98][0].apply(exports,arguments)
-},{"dup":98}],170:[function(require,module,exports){
+},{"./der":168,"dup":98}],170:[function(require,module,exports){
+arguments[4][99][0].apply(exports,arguments)
+},{"../../asn1":162,"dup":99,"inherits":183}],171:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"./der":170,"./pem":172,"dup":100}],172:[function(require,module,exports){
+arguments[4][101][0].apply(exports,arguments)
+},{"../../asn1":162,"./der":170,"buffer":37,"dup":101,"inherits":183}],173:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"../../asn1":162,"buffer":37,"dup":102,"inherits":183}],174:[function(require,module,exports){
+arguments[4][103][0].apply(exports,arguments)
+},{"./der":173,"./pem":175,"dup":103}],175:[function(require,module,exports){
+arguments[4][104][0].apply(exports,arguments)
+},{"../../asn1":162,"./der":173,"buffer":37,"dup":104,"inherits":183}],176:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"dup":105}],177:[function(require,module,exports){
 (function (Buffer){
 var parseKeys = require('parse-asn1');
 var mgf = require('./mgf');
@@ -16798,7 +17151,7 @@ function compare(a, b){
   return dif;
 }
 }).call(this,require("buffer").Buffer)
-},{"./mgf":147,"./withPublic":172,"./xor":173,"bn.js":148,"browserify-rsa":149,"buffer":30,"create-hash":125,"parse-asn1":154}],171:[function(require,module,exports){
+},{"./mgf":154,"./withPublic":179,"./xor":180,"bn.js":155,"browserify-rsa":156,"buffer":37,"create-hash":132,"parse-asn1":161}],178:[function(require,module,exports){
 (function (Buffer){
 var parseKeys = require('parse-asn1');
 var randomBytes = require('randombytes');
@@ -16896,7 +17249,7 @@ function nonZero(len, crypto) {
   return out;
 }
 }).call(this,require("buffer").Buffer)
-},{"./mgf":147,"./withPublic":172,"./xor":173,"bn.js":148,"browserify-rsa":149,"buffer":30,"create-hash":125,"parse-asn1":154,"randombytes":174}],172:[function(require,module,exports){
+},{"./mgf":154,"./withPublic":179,"./xor":180,"bn.js":155,"browserify-rsa":156,"buffer":37,"create-hash":132,"parse-asn1":161,"randombytes":181}],179:[function(require,module,exports){
 (function (Buffer){
 var bn = require('bn.js');
 function withPublic(paddedMsg, key) {
@@ -16909,7 +17262,7 @@ function withPublic(paddedMsg, key) {
 
 module.exports = withPublic;
 }).call(this,require("buffer").Buffer)
-},{"bn.js":148,"buffer":30}],173:[function(require,module,exports){
+},{"bn.js":155,"buffer":37}],180:[function(require,module,exports){
 module.exports = function xor(a, b) {
   var len = a.length;
   var i = -1;
@@ -16918,7 +17271,7 @@ module.exports = function xor(a, b) {
   }
   return a
 };
-},{}],174:[function(require,module,exports){
+},{}],181:[function(require,module,exports){
 (function (process,global,Buffer){
 'use strict';
 
@@ -16950,7 +17303,7 @@ function oldBrowser() {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"_process":179,"buffer":30}],175:[function(require,module,exports){
+},{"_process":186,"buffer":37}],182:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17253,7 +17606,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],176:[function(require,module,exports){
+},{}],183:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -17278,7 +17631,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],177:[function(require,module,exports){
+},{}],184:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -17297,12 +17650,12 @@ module.exports = function (obj) {
     ))
 }
 
-},{}],178:[function(require,module,exports){
+},{}],185:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],179:[function(require,module,exports){
+},{}],186:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -17395,10 +17748,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],180:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":181}],181:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":188}],188:[function(require,module,exports){
 // a duplex stream is just a stream that is both readable and writable.
 // Since JS doesn't have multiple prototypal inheritance, this class
 // prototypally inherits from Readable, and then parasitically from
@@ -17482,7 +17835,7 @@ function forEach (xs, f) {
   }
 }
 
-},{"./_stream_readable":183,"./_stream_writable":185,"core-util-is":186,"inherits":176,"process-nextick-args":187}],182:[function(require,module,exports){
+},{"./_stream_readable":190,"./_stream_writable":192,"core-util-is":193,"inherits":183,"process-nextick-args":194}],189:[function(require,module,exports){
 // a passthrough stream.
 // basically just the most minimal sort of Transform stream.
 // Every written chunk gets output as-is.
@@ -17511,7 +17864,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":184,"core-util-is":186,"inherits":176}],183:[function(require,module,exports){
+},{"./_stream_transform":191,"core-util-is":193,"inherits":183}],190:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -18474,7 +18827,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":181,"_process":179,"buffer":30,"core-util-is":186,"events":175,"inherits":176,"isarray":178,"process-nextick-args":187,"string_decoder/":194,"util":29}],184:[function(require,module,exports){
+},{"./_stream_duplex":188,"_process":186,"buffer":37,"core-util-is":193,"events":182,"inherits":183,"isarray":185,"process-nextick-args":194,"string_decoder/":201,"util":36}],191:[function(require,module,exports){
 // a transform stream is a readable/writable stream where you do
 // something with the data.  Sometimes it's called a "filter",
 // but that's not a great name for it, since that implies a thing where
@@ -18673,7 +19026,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":181,"core-util-is":186,"inherits":176}],185:[function(require,module,exports){
+},{"./_stream_duplex":188,"core-util-is":193,"inherits":183}],192:[function(require,module,exports){
 // A bit simpler than readable streams.
 // Implement an async ._write(chunk, cb), and it'll handle all
 // the drain event emission and buffering.
@@ -19195,7 +19548,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./_stream_duplex":181,"buffer":30,"core-util-is":186,"events":175,"inherits":176,"process-nextick-args":187,"util-deprecate":188}],186:[function(require,module,exports){
+},{"./_stream_duplex":188,"buffer":37,"core-util-is":193,"events":182,"inherits":183,"process-nextick-args":194,"util-deprecate":195}],193:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -19305,7 +19658,7 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 }).call(this,{"isBuffer":require("/Users/dread/Apps/php/fastwordpress.org/wp-content/themes/FastWordPress.org/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
-},{"/Users/dread/Apps/php/fastwordpress.org/wp-content/themes/FastWordPress.org/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":177}],187:[function(require,module,exports){
+},{"/Users/dread/Apps/php/fastwordpress.org/wp-content/themes/FastWordPress.org/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":184}],194:[function(require,module,exports){
 (function (process){
 'use strict';
 module.exports = nextTick;
@@ -19322,7 +19675,7 @@ function nextTick(fn) {
 }
 
 }).call(this,require('_process'))
-},{"_process":179}],188:[function(require,module,exports){
+},{"_process":186}],195:[function(require,module,exports){
 (function (global){
 
 /**
@@ -19388,10 +19741,10 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],189:[function(require,module,exports){
+},{}],196:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":182}],190:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":189}],197:[function(require,module,exports){
 var Stream = (function (){
   try {
     return require('st' + 'ream'); // hack to fix a circular dependency issue when used with browserify
@@ -19405,13 +19758,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":181,"./lib/_stream_passthrough.js":182,"./lib/_stream_readable.js":183,"./lib/_stream_transform.js":184,"./lib/_stream_writable.js":185}],191:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":188,"./lib/_stream_passthrough.js":189,"./lib/_stream_readable.js":190,"./lib/_stream_transform.js":191,"./lib/_stream_writable.js":192}],198:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":184}],192:[function(require,module,exports){
+},{"./lib/_stream_transform.js":191}],199:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":185}],193:[function(require,module,exports){
+},{"./lib/_stream_writable.js":192}],200:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -19540,7 +19893,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":175,"inherits":176,"readable-stream/duplex.js":180,"readable-stream/passthrough.js":189,"readable-stream/readable.js":190,"readable-stream/transform.js":191,"readable-stream/writable.js":192}],194:[function(require,module,exports){
+},{"events":182,"inherits":183,"readable-stream/duplex.js":187,"readable-stream/passthrough.js":196,"readable-stream/readable.js":197,"readable-stream/transform.js":198,"readable-stream/writable.js":199}],201:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -19763,7 +20116,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":30}],195:[function(require,module,exports){
+},{"buffer":37}],202:[function(require,module,exports){
 var indexOf = require('indexof');
 
 var Object_keys = function (obj) {
@@ -19903,7 +20256,7 @@ exports.createContext = Script.createContext = function (context) {
     return copy;
 };
 
-},{"indexof":196}],196:[function(require,module,exports){
+},{"indexof":203}],203:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -19914,10 +20267,10 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],197:[function(require,module,exports){
+},{}],204:[function(require,module,exports){
 module.exports = require('./lib/custom-element');
 
-},{"./lib/custom-element":198}],198:[function(require,module,exports){
+},{"./lib/custom-element":205}],205:[function(require,module,exports){
 var Bindable = require('generate-js-bindings'),
     Bars = require('bars');
 
@@ -20059,10 +20412,10 @@ CustomElement.definePrototype({
 
 window.CustomElement = module.exports = CustomElement;
 
-},{"bars":199,"generate-js-bindings":208}],199:[function(require,module,exports){
+},{"bars":206,"generate-js-bindings":215}],206:[function(require,module,exports){
 module.exports = require('./lib');
 
-},{"./lib":204}],200:[function(require,module,exports){
+},{"./lib":211}],207:[function(require,module,exports){
 var Generator = require('generate-js'),
     Parser = require('./parser'),
     Renderer = require('./renderer'),
@@ -20110,7 +20463,7 @@ Bars.definePrototype({
 
 module.exports = window.Bars = Bars;
 
-},{"./blocks":201,"./helpers":203,"./parser":205,"./renderer":206,"generate-js":207}],201:[function(require,module,exports){
+},{"./blocks":208,"./helpers":210,"./parser":212,"./renderer":213,"generate-js":214}],208:[function(require,module,exports){
 var Generator = require('generate-js');
 
 var Blocks = Generator.generate(function Blocks() {});
@@ -20189,7 +20542,7 @@ Blocks.definePrototype({
 
 module.exports = Blocks;
 
-},{"generate-js":207}],202:[function(require,module,exports){
+},{"generate-js":214}],209:[function(require,module,exports){
 var Generator = require('generate-js'),
     Nodes = {};
 
@@ -20693,7 +21046,7 @@ Nodes.FRAG.definePrototype({
 
 module.exports = Nodes.FRAG;
 
-},{"generate-js":207}],203:[function(require,module,exports){
+},{"generate-js":214}],210:[function(require,module,exports){
 var Generator = require('generate-js');
 
 var Helpers = Generator.generate(function Helpers() {});
@@ -20706,10 +21059,10 @@ Helpers.definePrototype({
 
 module.exports = Helpers;
 
-},{"generate-js":207}],204:[function(require,module,exports){
+},{"generate-js":214}],211:[function(require,module,exports){
 module.exports = require('./bars');
 
-},{"./bars":200}],205:[function(require,module,exports){
+},{"./bars":207}],212:[function(require,module,exports){
 if (!String.prototype.codePointAt) {
     String.prototype.codePointAt = function (pos) {
         pos = isNaN(pos) ? 0 : pos;
@@ -22026,7 +22379,7 @@ function compile(buffer) {
 
 module.exports = compile;
 
-},{}],206:[function(require,module,exports){
+},{}],213:[function(require,module,exports){
 var Generator = require('generate-js'),
     Frag = require('./frag');
 
@@ -22052,7 +22405,7 @@ Renderer.definePrototype({
 
 module.exports = Renderer;
 
-},{"./frag":202,"generate-js":207}],207:[function(require,module,exports){
+},{"./frag":209,"generate-js":214}],214:[function(require,module,exports){
 /**
  * @name generate.js
  * @author Michaelangelo Jong
@@ -22447,7 +22800,7 @@ if (typeof define === 'function' && define.amd) {
 
 }());
 
-},{}],208:[function(require,module,exports){
+},{}],215:[function(require,module,exports){
 var EventEmitter = require('generate-js-events');
 
 /**
@@ -22633,7 +22986,7 @@ Bindable.definePrototype({
 
 module.exports = Bindable;
 
-},{"generate-js-events":209}],209:[function(require,module,exports){
+},{"generate-js-events":216}],216:[function(require,module,exports){
 /**
  * @name events.js
  * @author Michaelangelo Jong
@@ -22862,6 +23215,6 @@ EventEmitter.definePrototype(
 // Exports
 module.exports = EventEmitter;
 
-},{"generate-js":210}],210:[function(require,module,exports){
-arguments[4][207][0].apply(exports,arguments)
-},{"dup":207}]},{},[1]);
+},{"generate-js":217}],217:[function(require,module,exports){
+arguments[4][214][0].apply(exports,arguments)
+},{"dup":214}]},{},[1]);

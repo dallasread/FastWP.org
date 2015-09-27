@@ -45,6 +45,11 @@ button, .button {
     &.small {
         padding: $font-small / 2 $font-small;
     }
+
+    &.large {
+        padding: $font-large / 2 $font-large * 2;
+        font-size: $font-large;
+    }
 }
 
 .container {
@@ -134,4 +139,30 @@ i, em {
 
 .float-right {
     float: right;
+}
+
+.float-left {
+    float: left;
+}
+
+.align-right {
+    text-align: right;
+}
+
+.column {
+    float: left;
+
+    &.column-half {
+        width: 48%;
+        margin: 1%;
+    }
+
+    &.column-third {
+        width: 31%;
+        margin: 1%;
+    }
+}
+
+.primary {
+    color: $primary;
 }

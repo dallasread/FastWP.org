@@ -8,16 +8,28 @@
         .content {
             .main {
                 padding: $font-small;
+
+                .button, button {
+                    width: 100%;
+                    display: block;
+                }
+
+                .float-right, .float-left {
+                    float: none;
+                    display: block;
+                    width: 100%;
+                }
             }
         }
 
         .wrapper {
+            margin-top: 0;
+
             &.wrapper-narrow, &.wrapper-medium {
                 margin: 0 auto $font-large * 1.5;
             }
 
             &.wrapper-table {
-                margin-top: -$font-small;
                 margin-bottom: $font-small;
                 margin-left: -$font-small;
                 margin-right: -$font-small;

@@ -11,7 +11,8 @@ var Route = require('../../utils/route'),
                     var _ = this;
                     _.signUp({
                         email: $el.find('[name="email"]').val(),
-                        password: $el.find('[name="password"]').val()
+                        password: $el.find('[name="password"]').val(),
+                        plan_id: $el.find('[name="plan_id"]').val()
                     });
                     return false;
                 }
@@ -23,7 +24,9 @@ var AccountsSignUp = Route.generate(function AccountsSignUp(options) {
     var _ = this;
 
     _.beforeFilters = [
-        require('./signed-in-redirect')(_),
+        require('../helpers/signed-in-redirect')(_),
+        require('../helpers/include-stripe')(_),
+        require('../helpers/find-plans')(_)
     ];
 
     _.supercreate(options, config);
@@ -31,16 +34,40 @@ var AccountsSignUp = Route.generate(function AccountsSignUp(options) {
 
 AccountsSignUp.definePrototype({
     signUp: function signUp(data) {
-        var _ = this;
+        var _ = this,
+            $form = _.$element.find('[action="sign-up"]');
 
-        _.app.api('/users', {
-            method: 'POST'
-        }, function(err, user) {
-            if (err) return alert(err.join(', '));
+        $form.attr('disabled', true);
 
-            _.app.user = user;
-            _.app.go('/');
-            _.app.setAuthToken(user && user.auth_token);
+        window.Stripe.card.createToken($form, function(status, response) {
+            if (response.error) {
+                alert(response.error.message);
+                $form.removeAttr('disabled');
+            } else {
+                _.app.api('/users', {
+                    method: 'POST',
+                    public: true,
+                    data: {
+                        name: $form.find('[name="name"]').val(),
+                        email: $form.find('[name="email"]').val(),
+                        password: $form.find('[name="password"]').val(),
+                        stripe_token: response.id
+                    }
+                }, function(err, user) {
+                    if (err) {
+                        $form.removeAttr('disabled');
+                        alert(err.join(', '));
+                        return;
+                    }
+
+
+                    console.log(user);
+
+                    _.app.user = user;
+                    _.app.go('/');
+                    _.app.setAuthToken(user && user.auth_token);
+                });
+            }
         });
     }
 });

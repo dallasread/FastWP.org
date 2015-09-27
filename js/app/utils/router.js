@@ -3,7 +3,8 @@ var CustomElement = require('generate-js-custom-element'),
     async = require('async');
 
 var Router = CustomElement.generate(function Router($element, config, options) {
-    var _ = this;
+    var _ = this,
+        path = window.location.hash;
 
     _.supercreate($element, config);
     _.defineProperties(options);
@@ -15,6 +16,8 @@ var Router = CustomElement.generate(function Router($element, config, options) {
         var path = window.location.hash;
         _.go(path);
     });
+
+    _.go(path);
 });
 
 Router.definePrototype({
@@ -61,8 +64,8 @@ Router.definePrototype({
         };
     },
 
-    go: function go(path) {
-        if (path !== window.location.hash) {
+    go: function go(path, reloadIfNecessary) {
+        if (!reloadIfNecessary && path !== window.location.hash) {
             window.location.hash = '#!' + path.replace(/[#|!]/, '');
             return;
         }
@@ -95,9 +98,9 @@ Router.definePrototype({
 
             _.$element.find('[data-main]').html( _.current.$element );
 
-            // if (cache) {
-            //     _.current.parseInteractions(_.current.interactions);
-            // }
+            if (cache) {
+                _.current.parseInteractions(_.current.interactions);
+            }
 
             _.update(_);
             _.current.update(_.current);

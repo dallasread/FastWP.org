@@ -12,28 +12,38 @@
     <form class="form" action="sign-up">
         <div class="field">
             <label for="name">Your Name</label>
-            <input type="text" name="name">
+            <input type="text" name="name" id="name">
         </div>
 
         <div class="field">
             <label for="email">Email Address</label>
-            <input type="email" name="email">
+            <input type="email" name="email" id="email">
         </div>
 
         <div class="field">
             <label for="password">Password</label>
-            <input type="password" name="password">
+            <input type="password" name="password" id="password">
         </div>
 
         <div class="field">
-            <label for="name">Credit Card</label>
-            <input type="text" id="cc_number" placeholder="Card Number">
-            <input type="text" id="expiry" placeholder="MM / YY">
-            <input type="text" id="ccv" placeholder="CCV">
+            <label for="number">Credit Card</label>
+            <input type="text" data-stripe="number" id="number" placeholder="Card Number">
+            <input type="text" data-stripe="exp-month" placeholder="Expiry Month (MM)">
+            <input type="text" data-stripe="exp-year" placeholder="Expiry Year (YY)">
+            <input type="text" data-stripe="cvc" placeholder="CCV">
         </div>
 
         <div class="field">
-            <button type="submit" class="secondary">Sign In</button>
+            <label for="plan">Choose A Plan</label>
+            <select name="plan_id" id="plan">
+                {{#each app/plans}}
+                    <option value="{{id}}" {{#if isSelected}}selected{{/if}}>{{name}}</option>
+                {{/each}}
+            </select>
+        </div>
+
+        <div class="field">
+            <button type="submit" class="secondary">Sign Up Now</button>
         </div>
     </form>
 </div>

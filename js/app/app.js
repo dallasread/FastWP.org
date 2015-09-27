@@ -54,28 +54,13 @@ function getCookie(name) {
 }
 
 var App = Router.generate(function App($element, options) {
-    var _ = this,
-        path = window.location.hash;
+    var _ = this;
 
     _.defineProperties({
-        routes: require('./routes'),
-        installations: {}
+        routes: require('./routes')
     });
 
     _.supercreate($element, config, options);
-
-    _.api('/me', {
-        method: 'GET',
-        credentials: 'apiTokenCookie'
-    }, function(err, user) {
-        if (err) {
-            // _.go(_.current || window.location.hash || '/');
-        } else {
-            _.user = user;
-            _.go(path || '/');
-            _.update(_);
-        }
-    });
 });
 
 App.definePrototype({
@@ -86,23 +71,31 @@ App.definePrototype({
 
         if (!path || !options.method) return done(null, null);
 
-        if (options.credentials === 'apiTokenCookie') {
-            var authToken = getCookie('FWP-API-authToken');
-            if (!authToken) return done(null, null);
-            authTokenString = '?auth_token=' + authToken;
-        } else if (options.credentials) {
+        if (typeof options.credentials === 'object') {
             headers = {
                 Authorization: 'Basic ' + btoa(options.credentials.email + ':' + options.credentials.password)
             };
+        } else if (!options.public) {
+            var authToken = getCookie('FWP-API-authToken');
+            if (!authToken) return done(['You are not logged in.'], null);
+            authTokenString = '?auth_token=' + authToken;
         }
 
         $.ajax({
             method: options.method,
             url: _.apiURL + path + authTokenString,
             headers: headers,
+            data: options.data,
             complete: function(data) {
                 data = data.responseJSON;
-                done(!data || data.errors, data);
+
+                if (!data) {
+                    data = {
+                        errors: ['Something went wrong. Please try again.']
+                    };
+                }
+
+                done(data && data.errors, data);
             }
         });
     },

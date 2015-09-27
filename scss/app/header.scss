@@ -16,8 +16,8 @@
                 padding: $font-large;
 
                 i {
-                    margin-top: -5px;
-                    padding-bottom: 4px;
+                    margin-top: -3px;
+                    padding-bottom: 3px;
                 }
             }
         }
@@ -50,7 +50,7 @@
             font-size: $font-medium;
             float: right;
 
-            &.installation-menu {
+            &.site-menu {
                 float: left;
             }
 
@@ -60,6 +60,11 @@
 
             a {
                 padding: $font-xlarge + 2 $font-medium $font-xlarge - 1;
+
+                i {
+                    margin-top: -4px;
+                    padding-bottom: 3px;
+                }
             }
         }
     }

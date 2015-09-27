@@ -1,1 +1,1 @@
-- New accounts should have a default installation
+- New accounts should have a default site
