@@ -10,6 +10,7 @@ var Route = require('../../utils/route'),
                 listener: function signUpInteraction(e, $el) {
                     var _ = this;
                     _.signUp({
+                        name: $el.find('[name="name"]').val(),
                         email: $el.find('[name="email"]').val(),
                         password: $el.find('[name="password"]').val(),
                         plan_id: $el.find('[name="plan_id"]').val()
@@ -44,15 +45,12 @@ AccountsSignUp.definePrototype({
                 alert(response.error.message);
                 $form.removeAttr('disabled');
             } else {
+                data.stripe_token = response.id;
+
                 _.app.api('/users', {
                     method: 'POST',
                     public: true,
-                    data: {
-                        name: $form.find('[name="name"]').val(),
-                        email: $form.find('[name="email"]').val(),
-                        password: $form.find('[name="password"]').val(),
-                        stripe_token: response.id
-                    }
+                    data: data
                 }, function(err, user) {
                     if (err) {
                         $form.removeAttr('disabled');
